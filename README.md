@@ -24,12 +24,57 @@
 
 ## Предварительные условия
 
-### 1. Используется следующие данные для извлечения данных с помощью API
+### Используется следующие данные для извлечения данных с помощью API
 - **Ключ API**: `E6kUTYrYwZq2tN4QEtyzsbEBk3ie`
 - **База данных**: размещена на `freesqldatabase.com`.
+- 
+**Мы поместили переменные в файл .env:**
 
----
+```env
+API_PROTOCOL=http
+API_HOST=89.108.115.241
+API_PORT=6969
+API_BASE_PATH=/api
+API_KEY=E6kUTYrYwZq2tN4QEtyzsbEBk3ie
+```
+### Извлечение данных происходит в ApiService таким образом:
 
+**Мы обозначали локальные переменные для переменных из файл .env чтобы использовать в дальнейшем:**
+```php
+$this->protocol = config('app.api_protocol');
+        $this->host = config('app.api_host');
+        $this->port = config('app.api_port');
+        $this->basePath = config('app.api_base_path');
+        $this->apiKey = config('app.api_key');
+```
+**Тут мы складываем URL чтобы создать запрос с Api:**
+
+```php
+$page = 1;
+        $limit = 500;
+        $data = [];
+
+        $formattedDateFrom = $this->normalizeDate($dateFrom);
+        $formattedDateTo = $this->normalizeDate($dateTo);
+
+        $baseUrl = "{$this->protocol}://{$this->host}:{$this->port}{$this->basePath}";
+
+        $baseParams = [
+            'dateFrom' => $formattedDateFrom,
+            'dateTo' => $formattedDateTo,
+            'limit' => $limit,
+            'key' => $this->apiKey,
+        ];
+```
+```php
+$queryParams = array_merge($baseParams, $additionalParams, ['page' => $page]);
+                $queryString = http_build_query($queryParams);
+                $url = "{$baseUrl}/{$endpoint}?{$queryString}";
+
+
+                $response = Http::get($url);
+
+```
 ## Инструкции по настройке
 
 ### Шаг 1. Клонирование репозитория
@@ -77,7 +122,6 @@ docker exec -it laravel_app bash
 php artisan migrate
 ```
 
----
 
 ### Миграции базы данных
 Схема базы данных включает следующие таблицы:
@@ -122,7 +166,7 @@ php artisan migrate
 Используется для:
 - **Авторизация**: обеспечивает включение во все запросы требуемого ключа API используется в api.php routes.
 
----
+
 
 ## Извлечение данных
 
@@ -161,7 +205,6 @@ php artisan fetch:api-data --type=orders --fromDate="2025-01-01" --toDate="2025-
 php artisan fetch:api-data --type=stocks
 ```
 
----
 
 ## Автоматизация извлечения с помощью планировщика задач
 
@@ -193,7 +236,7 @@ php H:\Programs\laragon\www\laravel-docker\artisan schedule:run
 ```
 Установите запуск каждую минуту.
 
----
+
 
 ## Развертывание базы данных
 
