@@ -12,8 +12,9 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->command('fetch:api-data')->daily();
+        $schedule->command('fetch:api-data --type=all')->dailyAt('01:00'); 
     }
+
 
     /**
      * Register the commands for the application.
