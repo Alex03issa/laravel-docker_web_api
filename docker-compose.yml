@@ -1,0 +1,23 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www/html
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: sql12.freesqldatabase.com
+      DB_PORT: 3306
+      DB_DATABASE: sql12759387
+      DB_USERNAME: sql12759387
+      DB_PASSWORD: AFwmuRTfFm
+    networks:
+      - laravel
+
+networks:
+  laravel:
+    driver: bridge
