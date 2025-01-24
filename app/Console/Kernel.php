@@ -12,7 +12,14 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->command('fetch:api-data --type=all')->dailyAt('01:00'); 
+       
+        $fromDate = now()->subDay()->format('Y-m-d H:i:s');
+        $toDate = now()->format('Y-m-d H:i:s');
+
+        $schedule->command("fetch:api-data --type=orders --fromDate='{$fromDate}' --toDate='{$toDate}'")->dailyAt('01:00');
+        $schedule->command("fetch:api-data --type=sales --fromDate='{$fromDate}' --toDate='{$toDate}'")->dailyAt('01:15');
+        $schedule->command("fetch:api-data --type=incomes --fromDate='{$fromDate}' --toDate='{$toDate}'")->dailyAt('01:30');
+        $schedule->command('fetch:api-data --type=stocks')->dailyAt('02:00');
     }
 
 

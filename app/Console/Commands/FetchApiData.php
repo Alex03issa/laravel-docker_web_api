@@ -58,14 +58,20 @@ class FetchApiData extends Command
         $this->info('Data fetched and stored successfully.');
         return 0;
     }
-
     private function fetchAll(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo)
     {
         $this->fetchOrders($apiService, $dataService, $dateFrom, $dateTo);
         $this->fetchSales($apiService, $dataService, $dateFrom, $dateTo);
         $this->fetchIncomes($apiService, $dataService, $dateFrom, $dateTo);
-        $this->fetchStocks($apiService, $dataService);
+    
+        $today = now()->format('Y-m-d');
+        if ($dateFrom === $today && $dateTo === $today) {
+            $this->fetchStocks($apiService, $dataService);
+        } else {
+            $this->warn("Skipping stocks fetch: Stocks data can only be fetched for the current day.");
+        }
     }
+    
 
     private function fetchOrders(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo)
     {
