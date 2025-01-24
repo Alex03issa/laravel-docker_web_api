@@ -3,6 +3,10 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\SaleController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\StockController;
+use App\Http\Controllers\IncomeController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -16,4 +20,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
+});
+
+Route::middleware(['auth.token'])->group(function () {
+    Route::get('/sales', [SaleController::class, 'index']);
+    Route::get('/orders', [OrderController::class, 'index']);
+    Route::get('/stocks', [StockController::class, 'index']);
+    Route::get('/incomes', [IncomeController::class, 'index']);
 });

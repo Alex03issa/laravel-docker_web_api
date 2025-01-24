@@ -57,7 +57,15 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+  
     'asset_url' => env('ASSET_URL'),
+
+    'api_protocol' => env('API_PROTOCOL', 'http'),
+    'api_host' => env('API_HOST', '127.0.0.1'),
+    'api_port' => env('API_PORT', '80'),
+    'api_base_path' => env('API_BASE_PATH', '/api'),
+    'api_key' => env('API_KEY', ''),
+
 
     /*
     |--------------------------------------------------------------------------

@@ -9,19 +9,29 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+    public function up()
     {
         Schema::create('incomes', function (Blueprint $table) {
             $table->id();
+            $table->bigInteger('income_id')->unique(); 
+            $table->string('number')->nullable();
+            $table->date('date')->nullable();
+            $table->date('last_change_date')->nullable();
+            $table->string('supplier_article')->nullable();
+            $table->string('tech_size')->nullable();
+            $table->bigInteger('barcode')->nullable();
+            $table->integer('quantity')->default(0);
+            $table->decimal('total_price', 10, 2)->default(0);
+            $table->date('date_close')->nullable();
+            $table->string('warehouse_name')->nullable();
+            $table->bigInteger('nm_id')->nullable();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
+    public function down()
     {
         Schema::dropIfExists('incomes');
     }
+
 };
