@@ -1,87 +1,132 @@
 <?php
-
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Log;
+use App\Models\Account;
 
 class ApiService
 {
-    protected $protocol;
-    protected $host;
-    protected $port;
-    protected $basePath;
-    protected $apiKey;
+    protected $maxRetries = 5;
+    protected $baseDelay = 2;
+    protected $maxWaitTime = 60;
 
-    public function __construct()
+    /**
+     * Fetch paginated data using an API token assigned to a specific account.
+     */
+    public function fetchPaginatedData($endpoint, $dateFrom, $dateTo, $accountId, $additionalParams = [])
     {
-        $this->protocol = config('app.api_protocol');
-        $this->host = config('app.api_host');
-        $this->port = config('app.api_port');
-        $this->basePath = config('app.api_base_path');
-        $this->apiKey = config('app.api_key');
+        try {
+            Log::info("Fetching data from API for account ID: {$accountId}, endpoint: {$endpoint}");
+
+            // Получаем аккаунт
+            $account = Account::with('tokens.apiService')->findOrFail($accountId);
+            $token = $account->tokens()->first();
+
+            if (!$token) {
+                throw new \Exception("API-токен не найден для аккаунта ID: {$accountId}");
+            }
+
+            $baseUrl = $token->apiService->base_url;
+            $baseParams = array_merge([
+                'dateFrom' => $this->normalizeDate($dateFrom),
+                'dateTo' => $this->normalizeDate($dateTo),
+                'limit' => 500,
+                'key' => $token->token_value,
+            ], $additionalParams);
+
+            Log::info("Начало загрузки данных для {$endpoint} с {$baseParams['dateFrom']} по {$baseParams['dateTo']}, используя токен {$token->id}");
+
+            $page = 1;
+            $data = [];
+
+            do {
+                try {
+                    $queryParams = array_merge($baseParams, $additionalParams, ['page' => $page]);
+                    $queryString = http_build_query($queryParams);
+                    $url = "{$baseUrl}/{$endpoint}?{$queryString}";
+
+                    Log::info("Запрос к API: {$url}");
+
+                    $response = $this->makeRequestWithRetry($url);
+                    $responseData = $response->json();
+
+                    if (!empty($responseData['data'])) {
+                        $data = array_merge($data, $responseData['data']);
+                        Log::info("Страница {$page} загружена, найдено " . count($responseData['data']) . " записей.");
+                        $page++;
+                    } else {
+                        Log::info("Данные закончились на странице {$page}.");
+                        break;
+                    }
+                } catch (ConnectionException $e) {
+                    Log::error("Ошибка соединения: {$e->getMessage()}");
+                    throw new \Exception("Ошибка соединения с API {$url}: {$e->getMessage()}");
+                } catch (RequestException $e) {
+                    Log::error("Ошибка HTTP запроса: {$e->getMessage()}", ['url' => $url, 'query' => $queryParams]);
+                    throw new \Exception("Ошибка HTTP запроса {$url}: {$e->getMessage()}");
+                } catch (\Exception $e) {
+                    Log::error("Ошибка при получении данных: {$e->getMessage()}", ['url' => $url]);
+                    throw new \Exception("Ошибка получения данных с {$url}: {$e->getMessage()}");
+                }
+            } while (true);
+
+            Log::info("Завершена загрузка данных. Всего загружено: " . count($data) . " записей.");
+            return $data;
+        } catch (\Exception $e) {
+            Log::error("Общая ошибка при получении данных: " . $e->getMessage());
+            throw new \Exception("Ошибка получения данных: " . $e->getMessage());
+        }
     }
 
-    public function fetchPaginatedData($endpoint, $dateFrom, $dateTo, $additionalParams = [])
+    /**
+     * Makes an HTTP request with retry logic in case of a 429 Too Many Requests.
+     */
+    public function makeRequestWithRetry($url)
     {
-        $page = 1;
-        $limit = 500;
-        $data = [];
+        $retryCount = 0;
 
-        $formattedDateFrom = $this->normalizeDate($dateFrom);
-        $formattedDateTo = $this->normalizeDate($dateTo);
-
-        $baseUrl = "{$this->protocol}://{$this->host}:{$this->port}{$this->basePath}";
-
-        $baseParams = [
-            'dateFrom' => $formattedDateFrom,
-            'dateTo' => $formattedDateTo,
-            'limit' => $limit,
-            'key' => $this->apiKey,
-        ];
-
-        do {
+        while ($retryCount < $this->maxRetries) {
             try {
-                $queryParams = array_merge($baseParams, $additionalParams, ['page' => $page]);
-                $queryString = http_build_query($queryParams);
-                $url = "{$baseUrl}/{$endpoint}?{$queryString}";
-
+                Log::info("Попытка запроса #{$retryCount}: {$url}");
 
                 $response = Http::get($url);
+                Log::info("Ответ от API: Статус - " . $response->status());
 
+                if ($response->status() === 429) {
+                    $retryAfter = intval($response->header('Retry-After') ?? ($this->baseDelay * (2 ** $retryCount)));
+                    $retryAfter = min($retryAfter, $this->maxWaitTime);
+
+                    Log::warning("Получен 429 Too Many Requests. Повтор через {$retryAfter} секунд...");
+                    sleep($retryAfter);
+                    $retryCount++;
+                    continue;
+                }
 
                 $response->throw();
-
-                $responseData = $response->json();
-
-                if (!empty($responseData['data'])) {
-                    $data = array_merge($data, $responseData['data']);
-                    $page++;
-                } else {
-                    break;
-                }
+                return $response;
             } catch (ConnectionException $e) {
-                \Log::error("Connection error: {$e->getMessage()}");
-                throw new \Exception("Connection error while accessing {$url}: {$e->getMessage()}");
+                Log::error("Ошибка соединения: {$e->getMessage()} - Повтор запроса...");
             } catch (RequestException $e) {
-                \Log::error("HTTP request error: {$e->getMessage()}", ['url' => $url, 'query' => $queryParams]);
-                throw new \Exception("HTTP request error for {$url}: {$e->getMessage()}");
+                Log::error("HTTP ошибка запроса: {$e->getMessage()} - Повтор...");
             } catch (\Exception $e) {
-                \Log::error("General error: {$e->getMessage()}", ['url' => $url]);
-                throw new \Exception("An error occurred while fetching data from {$url}: {$e->getMessage()}");
+                Log::error("Общая ошибка API: {$e->getMessage()}");
+                throw new \Exception("API запрос не выполнен после {$retryCount} попыток: {$e->getMessage()}");
             }
-        } while (true);
 
-        return $data;
+            $delay = min($this->baseDelay * (2 ** $retryCount), $this->maxWaitTime);
+            Log::warning("Повтор запроса через {$delay} секунд...");
+            sleep($delay);
+            $retryCount++;
+        }
+
+        throw new \Exception("Запрос к API не выполнен после {$this->maxRetries} попыток.");
     }
 
     /**
      * Normalize date input to Y-m-d format.
-     *
-     * @param string $dateInput
-     * @return string
-     * @throws \Exception
      */
     private function normalizeDate($dateInput)
     {
@@ -94,7 +139,6 @@ class ApiService
             }
         }
 
-        throw new \Exception("Invalid date format: {$dateInput}. Expected formats: Y-m-d or Y-m-d H:i:s.");
+        throw new \Exception("Неправильный формат даты: {$dateInput}. Ожидаемые форматы: Y-m-d или Y-m-d H:i:s.");
     }
-
 }

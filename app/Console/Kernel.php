@@ -12,14 +12,38 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-       
-        $fromDate = now()->subDay()->format('Y-m-d H:i:s');
-        $toDate = now()->format('Y-m-d H:i:s');
+        $schedule->command('update:data')
+            ->timezone('Europe/Moscow')
+            ->twiceDaily(8, 20)
+            ->before(function () {
+                $this->waitForDatabase();
+            })
+            ->onFailure(function () {
+                \Log::error( 'Ошибка при обновлении данных!');
+            });
+    }
 
-        $schedule->command("fetch:api-data --type=orders --fromDate='{$fromDate}' --toDate='{$toDate}'")->dailyAt('01:00');
-        $schedule->command("fetch:api-data --type=sales --fromDate='{$fromDate}' --toDate='{$toDate}'")->dailyAt('01:15');
-        $schedule->command("fetch:api-data --type=incomes --fromDate='{$fromDate}' --toDate='{$toDate}'")->dailyAt('01:30');
-        $schedule->command('fetch:api-data --type=stocks')->dailyAt('02:00');
+    /**
+     * Waits for MySQL to be ready before running scheduled jobs
+     */
+    private function waitForDatabase()
+    {
+        $maxAttempts = 5;
+        $attempt = 0;
+
+        while ($attempt < $maxAttempts) {
+            try {
+                \DB::connection()->getPdo();
+                \Log::info("MySQL is ready. Starting scheduled task...");
+                return;
+            } catch (\Exception $e) {
+                $attempt++;
+                \Log::warning("MySQL not ready. Retrying attempt {$attempt}/{$maxAttempts}...");
+                sleep(10); // Wait 10 seconds before retrying
+            }
+        }
+
+        \Log::error("MySQL is not available after {$maxAttempts} attempts. Skipping scheduled task.");
     }
 
 

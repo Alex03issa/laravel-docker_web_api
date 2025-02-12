@@ -5,15 +5,18 @@ namespace App\Console\Commands;
 use App\Services\ApiService;
 use App\Services\DataService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+use App\Models\Account;
 
 class FetchApiData extends Command
 {
     protected $signature = 'fetch:api-data 
-                            {--type=all : Specify the type of data to fetch (all, orders, sales, incomes, stocks)} 
-                            {--fromDate= : Start date for fetching data (Y-m-d or Y-m-d H:i:s)} 
-                            {--toDate= : End date for fetching data (Y-m-d or Y-m-d H:i:s)}';
+                            {--type=all : Specify data type (all, orders, sales, incomes, stocks)} 
+                            {--fromDate= : Start date (Y-m-d or Y-m-d H:i:s)} 
+                            {--toDate= : End date (Y-m-d or Y-m-d H:i:s)} 
+                            {--accountId= : Specify account ID}';
 
-    protected $description = 'Fetch and store data from the API (orders, sales, incomes, stocks)';
+    protected $description = 'Fetch and store data from the API (orders, sales, incomes, stocks) using a specific account';
 
     public function __construct()
     {
@@ -22,117 +25,151 @@ class FetchApiData extends Command
 
     public function handle(ApiService $apiService, DataService $dataService)
     {
+        Log::info("Starting API Data Fetch Command", ['params' => $this->options()]);
+
         $type = $this->option('type');
         $fromDateInput = $this->option('fromDate') ?? now()->subDays(7)->format('Y-m-d');
         $toDateInput = $this->option('toDate') ?? now()->format('Y-m-d');
+        $accountId = $this->option('accountId');
+
+        // ✅ If no accountId is provided, get the first available account
+        if (!$accountId) {
+            $account = Account::first();
+            if (!$account) {
+                $this->error("No account found in the database. Provide an --accountId.");
+                Log::error("No account found. Cannot proceed.");
+                return 1;
+            }
+            $accountId = $account->id;
+            Log::info("Using default account ID: {$accountId}");
+        }
 
         $dateFrom = $this->normalizeDate($fromDateInput);
         $dateTo = $this->normalizeDate($toDateInput);
 
         if (!$dateFrom || !$dateTo) {
             $this->error('Invalid date format. Use Y-m-d or Y-m-d H:i:s.');
+            Log::error("Invalid date format: fromDate={$fromDateInput}, toDate={$toDateInput}");
             return 1;
         }
 
         switch ($type) {
             case 'orders':
-                $this->fetchOrders($apiService, $dataService, $dateFrom, $dateTo);
+                $this->fetchOrders($apiService, $dataService, $dateFrom, $dateTo, $accountId);
                 break;
             case 'sales':
-                $this->fetchSales($apiService, $dataService, $dateFrom, $dateTo);
+                $this->fetchSales($apiService, $dataService, $dateFrom, $dateTo, $accountId);
                 break;
             case 'incomes':
-                $this->fetchIncomes($apiService, $dataService, $dateFrom, $dateTo);
+                $this->fetchIncomes($apiService, $dataService, $dateFrom, $dateTo, $accountId);
                 break;
             case 'stocks':
-                $this->fetchStocks($apiService, $dataService);
+                $this->fetchStocks($apiService, $dataService, $accountId);
                 break;
             case 'all':
-                $this->fetchAll($apiService, $dataService, $dateFrom, $dateTo);
+                $this->fetchAll($apiService, $dataService, $dateFrom, $dateTo, $accountId);
                 break;
             default:
-                $this->error('Invalid type. Use one of the following: all, orders, sales, incomes, stocks.');
+                $this->error('Invalid type. Use: all, orders, sales, incomes, stocks.');
+                Log::error("Invalid type provided: {$type}");
                 return 1;
         }
 
-        $this->info('Data fetched and stored successfully.');
+        $this->info('Data fetch completed successfully.');
+        Log::info("API Data Fetch Command Completed Successfully");
         return 0;
     }
-    private function fetchAll(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo)
+
+    private function fetchAll(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)
     {
-        $this->fetchOrders($apiService, $dataService, $dateFrom, $dateTo);
-        $this->fetchSales($apiService, $dataService, $dateFrom, $dateTo);
-        $this->fetchIncomes($apiService, $dataService, $dateFrom, $dateTo);
-    
-        $today = now()->format('Y-m-d');
-        if ($dateFrom === $today && $dateTo === $today) {
-            $this->fetchStocks($apiService, $dataService);
+        $this->fetchOrders($apiService, $dataService, $dateFrom, $dateTo, $accountId);
+        $this->fetchSales($apiService, $dataService, $dateFrom, $dateTo, $accountId);
+        $this->fetchIncomes($apiService, $dataService, $dateFrom, $dateTo, $accountId);
+
+        if ($dateFrom === now()->format('Y-m-d') && $dateTo === now()->format('Y-m-d')) {
+            $this->fetchStocks($apiService, $dataService, $accountId);
         } else {
-            $this->warn("Skipping stocks fetch: Stocks data can only be fetched for the current day.");
+            $this->warn("Skipping stocks fetch: Stocks can only be fetched for today's date.");
         }
     }
-    
 
-    private function fetchOrders(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo)
+    private function fetchOrders(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)
     {
         try {
             $this->info('Fetching orders...');
-            $orders = $apiService->fetchPaginatedData('orders', $dateFrom, $dateTo);
-            $dataService->saveOrders($orders);
-            $this->info('Orders fetched and saved successfully.');
+            $orders = $apiService->fetchPaginatedData('orders', $dateFrom, $dateTo, $accountId);
+
+            if (!empty($orders)) {
+                $dataService->saveOrders($orders, $accountId);
+                $this->info("Orders saved successfully. Records: " . count($orders));
+            } else {
+                $this->warn("No new orders found.");
+            }
         } catch (\Exception $e) {
             $this->error("Error fetching orders: " . $e->getMessage());
-            \Log::error("Orders Fetch Error: " . $e->getMessage());
+            Log::error("Orders Fetch Error: " . $e->getMessage());
         }
     }
 
-    private function fetchSales(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo)
+    private function fetchSales(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)
     {
         try {
             $this->info('Fetching sales...');
-            $sales = $apiService->fetchPaginatedData('sales', $dateFrom, $dateTo);
-            $dataService->saveSales($sales);
-            $this->info('Sales fetched and saved successfully.');
+            $sales = $apiService->fetchPaginatedData('sales', $dateFrom, $dateTo, $accountId);
+
+            if (!empty($sales)) {
+                $dataService->saveSales($sales, $accountId);
+                $this->info("Sales saved successfully. Records: " . count($sales));
+            } else {
+                $this->warn("No new sales found.");
+            }
         } catch (\Exception $e) {
             $this->error("Error fetching sales: " . $e->getMessage());
-            \Log::error("Sales Fetch Error: " . $e->getMessage());
+            Log::error("Sales Fetch Error: " . $e->getMessage());
         }
     }
 
-    private function fetchIncomes(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo)
+    private function fetchIncomes(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)
     {
         try {
             $this->info('Fetching incomes...');
-            $incomes = $apiService->fetchPaginatedData('incomes', $dateFrom, $dateTo);
-            $dataService->saveIncomes($incomes);
-            $this->info('Incomes fetched and saved successfully.');
+            $incomes = $apiService->fetchPaginatedData('incomes', $dateFrom, $dateTo, $accountId);
+
+            if (!empty($incomes)) {
+                $dataService->saveIncomes($incomes, $accountId);
+                $this->info("Incomes saved successfully. Records: " . count($incomes));
+            } else {
+                $this->warn("No new incomes found.");
+            }
         } catch (\Exception $e) {
             $this->error("Error fetching incomes: " . $e->getMessage());
-            \Log::error("Incomes Fetch Error: " . $e->getMessage());
+            Log::error("Incomes Fetch Error: " . $e->getMessage());
         }
     }
 
-    private function fetchStocks(ApiService $apiService, DataService $dataService)
+    private function fetchStocks(ApiService $apiService, DataService $dataService, $accountId)
     {
         try {
             $this->info('Fetching stocks...');
             $today = now()->format('Y-m-d');
 
-            $fromDateInput = $this->option('fromDate');
-            $toDateInput = $this->option('toDate');
-
-            if (($fromDateInput && $fromDateInput !== $today) || ($toDateInput && $toDateInput !== $today)) {
-                $this->warn("Skipping stocks fetch: Stocks data can only be fetched for the current day. Provided dates: fromDate={$fromDateInput}, toDate={$toDateInput}.");
+            if (($this->option('fromDate') && $this->option('fromDate') !== $today) ||
+                ($this->option('toDate') && $this->option('toDate') !== $today)) {
+                $this->warn("Skipping stocks fetch: Stocks data can only be fetched for today.");
                 return;
             }
 
-            $stocks = $apiService->fetchPaginatedData('stocks', $today, $today);
-            $dataService->saveStocks($stocks);
+            $stocks = $apiService->fetchPaginatedData('stocks', $today, $today, $accountId);
 
-            $this->info('Stocks fetched and saved successfully.');
+            if (!empty($stocks)) {
+                $dataService->saveStocks($stocks, $accountId);
+                $this->info("Stocks saved successfully. Records: " . count($stocks));
+            } else {
+                $this->warn("No new stock data found.");
+            }
         } catch (\Exception $e) {
             $this->error("Error fetching stocks: " . $e->getMessage());
-            \Log::error("Stocks Fetch Error: " . $e->getMessage());
+            Log::error("Stocks Fetch Error: " . $e->getMessage());
         }
     }
 

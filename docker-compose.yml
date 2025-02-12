@@ -10,14 +10,42 @@ services:
       - .:/var/www/html
     environment:
       DB_CONNECTION: mysql
-      DB_HOST: sql12.freesqldatabase.com
-      DB_PORT: 3306
-      DB_DATABASE: sql12759387
-      DB_USERNAME: sql12759387
-      DB_PASSWORD: AFwmuRTfFm
+      DB_HOST: 172.18.0.2
+      DB_PORT: 3309
+      DB_DATABASE: Test2Apilaravel
+      DB_USERNAME: proctocode_user 
+      DB_PASSWORD: newpassword
+    depends_on:
+      mysql:
+        condition: service_healthy 
     networks:
       - laravel
+
+  mysql:
+    image: mysql:8.0
+    container_name: laravel_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: Test2Apilaravel  
+      MYSQL_USER: proctocode_user
+      MYSQL_PASSWORD: newpassword
+      MYSQL_ROOT_PASSWORD: newpassword
+    ports:
+      - "3309:3306"
+    command: --max_connections=500 --max_allowed_packet=256M --wait_timeout=600 --net_read_timeout=600 --net_write_timeout=600 --innodb_buffer_pool_size=512M --innodb_log_file_size=128M
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - laravel
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   laravel:
     driver: bridge
+
+volumes:
+  mysql_data:
