@@ -7,7 +7,7 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\IncomeController;
-use App\Http\Controllers\AccountController;
+use App\Http\Middleware\AuthenticateApiToken;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -23,13 +23,29 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::middleware(['auth.token', 'throttle:20,1'])->group(function () {
+Route::middleware(['auth.api', 'throttle:20,1'])->group(function () {
     Route::get('/sales', [SaleController::class, 'index']);
     Route::get('/orders', [OrderController::class, 'index']);
     Route::get('/stocks', [StockController::class, 'index']);
     Route::get('/incomes', [IncomeController::class, 'index']);
 });
 
-Route::get('/accounts', [AccountController::class, 'index']);
-Route::post('/accounts', [AccountController::class, 'store']);
-Route::get('/accounts/{id}', [AccountController::class, 'show']);
+
+
+Route::middleware([AuthenticateApiToken::class])->group(function () {
+    Route::get('/local-orders', [OrderController::class, 'localOrders']);
+}); 
+
+Route::middleware([AuthenticateApiToken::class])->group(function () {
+    Route::get('/local-sales', [SaleController::class, 'localSales']);
+}); 
+
+Route::middleware([AuthenticateApiToken::class])->group(function () {
+    Route::get('/local-stocks', [StockController::class, 'localStocks']);
+}); 
+
+Route::middleware([AuthenticateApiToken::class])->group(function () {
+    Route::get('/local-incomes', [IncomeController::class, 'localIncomes']);
+}); 
+   
+    

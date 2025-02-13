@@ -1,0 +1,124 @@
+2025-02-12 20:30:21,170 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-12 20:30:21,208 INFO supervisord started with pid 1
+2025-02-12 20:30:22,213 INFO spawned: 'cron' with pid 7
+2025-02-12 20:30:22,216 INFO spawned: 'php' with pid 8
+2025-02-12 20:30:23,276 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 20:30:23,276 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 21:17:01,522 INFO reaped unknown pid 625 (exit status 0)
+2025-02-12 21:35:58,862 WARN received SIGQUIT indicating exit request
+2025-02-12 21:35:58,863 INFO waiting for cron, php to die
+2025-02-12 21:35:58,864 WARN stopped: php (terminated by SIGTERM)
+2025-02-12 21:35:58,866 WARN stopped: cron (terminated by SIGTERM)
+2025-02-12 21:38:03,514 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-12 21:38:03,568 INFO supervisord started with pid 1
+2025-02-12 21:38:04,572 INFO spawned: 'cron' with pid 7
+2025-02-12 21:38:04,575 INFO spawned: 'php' with pid 8
+2025-02-12 21:38:05,599 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 21:38:05,600 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 21:45:06,094 WARN received SIGQUIT indicating exit request
+2025-02-12 21:45:06,095 INFO waiting for cron, php to die
+2025-02-12 21:45:06,096 WARN stopped: php (terminated by SIGTERM)
+2025-02-12 21:45:07,098 WARN stopped: cron (terminated by SIGTERM)
+2025-02-12 21:47:44,297 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-12 21:47:44,302 INFO supervisord started with pid 1
+2025-02-12 21:47:45,306 INFO spawned: 'cron' with pid 7
+2025-02-12 21:47:45,308 INFO spawned: 'php' with pid 8
+2025-02-12 21:47:46,333 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 21:47:46,334 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 21:59:26,138 WARN received SIGQUIT indicating exit request
+2025-02-12 21:59:26,138 INFO waiting for cron, php to die
+2025-02-12 21:59:26,140 WARN stopped: php (terminated by SIGTERM)
+2025-02-12 21:59:26,142 WARN stopped: cron (terminated by SIGTERM)
+2025-02-12 22:01:21,267 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-12 22:01:21,305 INFO supervisord started with pid 1
+2025-02-12 22:01:22,309 INFO spawned: 'cron' with pid 7
+2025-02-12 22:01:22,314 INFO spawned: 'php' with pid 8
+2025-02-12 22:01:23,344 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 22:01:23,345 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 22:05:27,627 WARN received SIGQUIT indicating exit request
+2025-02-12 22:05:27,628 INFO waiting for cron, php to die
+2025-02-12 22:05:27,629 WARN stopped: php (terminated by SIGTERM)
+2025-02-12 22:05:27,631 WARN stopped: cron (terminated by SIGTERM)
+2025-02-12 22:07:23,258 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-12 22:07:23,264 INFO supervisord started with pid 1
+2025-02-12 22:07:24,269 INFO spawned: 'cron' with pid 8
+2025-02-12 22:07:24,273 INFO spawned: 'php' with pid 9
+2025-02-12 22:07:25,315 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 22:07:25,316 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 22:17:01,996 INFO reaped unknown pid 228 (exit status 0)
+2025-02-12 22:30:06,842 INFO reaped unknown pid 307 (terminated by SIGINT)
+2025-02-12 22:30:06,843 INFO reaped unknown pid 308 (terminated by SIGHUP)
+2025-02-12 22:30:06,844 INFO reaped unknown pid 306 (terminated by SIGINT)
+2025-02-12 22:30:06,845 INFO reaped unknown pid 309 (terminated by SIGHUP)
+2025-02-12 22:31:31,938 WARN received SIGQUIT indicating exit request
+2025-02-12 22:31:31,939 INFO waiting for cron, php to die
+2025-02-12 22:31:31,940 WARN stopped: php (terminated by SIGTERM)
+2025-02-12 22:31:31,941 WARN stopped: cron (terminated by SIGTERM)
+2025-02-12 22:31:49,419 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-12 22:31:49,444 INFO supervisord started with pid 1
+2025-02-12 22:31:50,449 INFO spawned: 'cron' with pid 7
+2025-02-12 22:31:50,454 INFO spawned: 'php' with pid 8
+2025-02-12 22:31:51,504 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 22:31:51,504 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-12 23:17:01,712 INFO reaped unknown pid 352 (exit status 0)
+2025-02-13 00:17:02,050 INFO reaped unknown pid 671 (exit status 0)
+2025-02-13 01:17:02,390 INFO reaped unknown pid 983 (exit status 0)
+2025-02-13 02:17:01,599 INFO reaped unknown pid 1289 (exit status 0)
+2025-02-13 03:04:33,997 INFO reaped unknown pid 1532 (terminated by SIGKILL)
+2025-02-13 06:17:01,390 INFO reaped unknown pid 1632 (exit status 0)
+2025-02-13 07:04:58,292 INFO reaped unknown pid 1922 (exit status 0)
+2025-02-13 07:17:02,152 INFO reaped unknown pid 1991 (exit status 0)
+2025-02-13 07:23:51,617 INFO reaped unknown pid 1538 (terminated by SIGKILL)
+2025-02-13 07:23:51,617 INFO reaped unknown pid 1531 (terminated by SIGKILL)
+2025-02-13 07:25:34,730 INFO reaped unknown pid 2050 (exit status 0)
+2025-02-13 07:29:00,968 WARN received SIGQUIT indicating exit request
+2025-02-13 07:29:00,969 INFO waiting for cron, php to die
+2025-02-13 07:29:00,970 WARN stopped: php (terminated by SIGTERM)
+2025-02-13 07:29:00,972 WARN stopped: cron (terminated by SIGTERM)
+2025-02-13 07:29:03,305 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-13 07:29:03,314 INFO supervisord started with pid 1
+2025-02-13 07:29:04,318 INFO spawned: 'cron' with pid 6
+2025-02-13 07:29:04,321 INFO spawned: 'php' with pid 7
+2025-02-13 07:29:05,352 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 07:29:05,353 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 08:17:02,695 INFO reaped unknown pid 374 (exit status 0)
+2025-02-13 10:17:02,636 INFO reaped unknown pid 950 (exit status 0)
+2025-02-13 10:36:41,021 WARN received SIGQUIT indicating exit request
+2025-02-13 10:36:41,022 INFO waiting for cron, php to die
+2025-02-13 10:36:41,024 WARN stopped: php (terminated by SIGTERM)
+2025-02-13 10:36:41,025 WARN stopped: cron (terminated by SIGTERM)
+2025-02-13 10:36:57,740 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-13 10:36:57,748 INFO supervisord started with pid 1
+2025-02-13 10:36:58,752 INFO spawned: 'cron' with pid 7
+2025-02-13 10:36:58,760 INFO spawned: 'php' with pid 8
+2025-02-13 10:36:59,824 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 10:36:59,825 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 10:37:08,836 WARN received SIGQUIT indicating exit request
+2025-02-13 10:37:08,839 INFO waiting for cron, php to die
+2025-02-13 10:37:08,840 WARN stopped: php (terminated by SIGTERM)
+2025-02-13 10:37:09,843 WARN stopped: cron (terminated by SIGTERM)
+2025-02-13 11:45:10,767 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-13 11:45:10,908 INFO supervisord started with pid 1
+2025-02-13 11:45:11,912 INFO spawned: 'cron' with pid 7
+2025-02-13 11:45:11,952 INFO spawned: 'php' with pid 8
+2025-02-13 11:45:13,065 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 11:45:13,066 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 12:17:01,962 INFO reaped unknown pid 90 (exit status 0)
+2025-02-13 14:17:01,492 INFO reaped unknown pid 163 (exit status 0)
+2025-02-13 15:17:02,847 INFO reaped unknown pid 519 (exit status 0)
+2025-02-13 15:26:56,541 WARN received SIGQUIT indicating exit request
+2025-02-13 15:26:56,542 INFO waiting for cron, php to die
+2025-02-13 15:26:56,544 WARN stopped: php (terminated by SIGTERM)
+2025-02-13 15:26:56,547 WARN stopped: cron (terminated by SIGTERM)
+2025-02-13 15:26:59,542 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-13 15:26:59,737 INFO supervisord started with pid 1
+2025-02-13 15:27:00,758 INFO spawned: 'cron' with pid 8
+2025-02-13 15:27:00,761 INFO spawned: 'php' with pid 9
+2025-02-13 15:27:01,799 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 15:27:01,800 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 16:17:02,175 INFO reaped unknown pid 284 (exit status 0)
+2025-02-13 16:19:08,318 WARN received SIGQUIT indicating exit request
+2025-02-13 16:19:08,319 INFO waiting for cron, php to die
+2025-02-13 16:19:08,320 WARN stopped: php (terminated by SIGTERM)
+2025-02-13 16:19:08,519 WARN stopped: cron (terminated by SIGTERM)
+2025-02-13 16:19:08,520 INFO reaped unknown pid 300 (exit status 0)

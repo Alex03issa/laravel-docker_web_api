@@ -32,7 +32,6 @@ class FetchApiData extends Command
         $toDateInput = $this->option('toDate') ?? now()->format('Y-m-d');
         $accountId = $this->option('accountId');
 
-        // ✅ If no accountId is provided, get the first available account
         if (!$accountId) {
             $account = Account::first();
             if (!$account) {
@@ -93,28 +92,12 @@ class FetchApiData extends Command
         }
     }
 
-    private function fetchOrders(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)
-    {
-        try {
-            $this->info('Fetching orders...');
-            $orders = $apiService->fetchPaginatedData('orders', $dateFrom, $dateTo, $accountId);
-
-            if (!empty($orders)) {
-                $dataService->saveOrders($orders, $accountId);
-                $this->info("Orders saved successfully. Records: " . count($orders));
-            } else {
-                $this->warn("No new orders found.");
-            }
-        } catch (\Exception $e) {
-            $this->error("Error fetching orders: " . $e->getMessage());
-            Log::error("Orders Fetch Error: " . $e->getMessage());
-        }
-    }
+    
 
     private function fetchSales(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)
     {
         try {
-            $this->info('Fetching sales...');
+            $this->info("Fetching sales for account ID: {$accountId}...");
             $sales = $apiService->fetchPaginatedData('sales', $dateFrom, $dateTo, $accountId);
 
             if (!empty($sales)) {
@@ -132,7 +115,7 @@ class FetchApiData extends Command
     private function fetchIncomes(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)
     {
         try {
-            $this->info('Fetching incomes...');
+            $this->info("Fetching incomes for account ID: {$accountId}...");
             $incomes = $apiService->fetchPaginatedData('incomes', $dateFrom, $dateTo, $accountId);
 
             if (!empty($incomes)) {
@@ -150,7 +133,7 @@ class FetchApiData extends Command
     private function fetchStocks(ApiService $apiService, DataService $dataService, $accountId)
     {
         try {
-            $this->info('Fetching stocks...');
+            $this->info("Fetching stocks for account ID: {$accountId}...");
             $today = now()->format('Y-m-d');
 
             if (($this->option('fromDate') && $this->option('fromDate') !== $today) ||

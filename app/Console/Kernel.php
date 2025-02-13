@@ -14,7 +14,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('update:data')
             ->timezone('Europe/Moscow')
-            ->twiceDaily(8, 20)
+            ->twiceDailyAt(8, 18, 00)
             ->before(function () {
                 $this->waitForDatabase();
             })
@@ -39,7 +39,7 @@ class Kernel extends ConsoleKernel
             } catch (\Exception $e) {
                 $attempt++;
                 \Log::warning("MySQL not ready. Retrying attempt {$attempt}/{$maxAttempts}...");
-                sleep(10); // Wait 10 seconds before retrying
+                sleep(10);
             }
         }
 

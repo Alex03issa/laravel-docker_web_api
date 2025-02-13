@@ -13,6 +13,7 @@ class Stock extends Model
 
     protected $fillable = [
         'date',
+        'account_id',
         'last_change_date',
         'supplier_article',
         'tech_size',

@@ -16,6 +16,7 @@ class Income extends Model
 
     protected $fillable = [
         'income_id',
+        'account_id',
         'number',
         'date',
         'last_change_date',

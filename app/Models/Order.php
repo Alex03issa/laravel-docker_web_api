@@ -15,6 +15,7 @@ class Order extends Model
     public $timestamps = false;
     protected $fillable = [
         'g_number',
+        'account_id',
         'date',
         'last_change_date',
         'supplier_article',

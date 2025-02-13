@@ -7,7 +7,9 @@ use App\Services\ApiService;
 use App\Services\DataService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
+use App\Models\Stock;
 use App\Models\Account;
+use App\Models\ApiToken;
 
 class StockController extends Controller
 {
@@ -26,45 +28,34 @@ class StockController extends Controller
 
         try {
             $validated = $request->validate([
-                'dateFrom' => [
-                    'required',
-                    function ($attribute, $value, $fail) {
-                        if (!$this->isValidDate($value)) {
-                            $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
-                        }
-                    }
-                ],
-                'dateTo' => [
-                    'nullable',
-                    function ($attribute, $value, $fail) {
-                        if ($value && !$this->isValidDate($value)) {
-                            $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
-                        }
-                    }
-                ],
-                'account_id' => 'required|integer|exists:accounts,id', 
+                'account_id' => 'required|integer|exists:accounts,id',
             ]);
 
-            $dateFrom = $validated['dateFrom'];
-            $dateTo = $validated['dateTo'] ?? $dateFrom;
-            $accountId = $validated['account_id']; 
+            $accountId = $validated['account_id'];
+            $today = now()->format('Y-m-d');
 
-            Log::info("Fetching Stocks from API", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
+            $latestStockDate = Stock::where('account_id', $accountId)->max('date');
 
-            // Fetch data from API
+            $dateFrom = $latestStockDate ?? $today;
+            $dateTo = $today;
+
+            Log::info("Fetching stocks from API", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
+
             $data = $this->apiService->fetchPaginatedData('stocks', $dateFrom, $dateTo, $accountId);
 
             if (empty($data)) {
-                Log::warning("No stock data returned for the given date range", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
+                Log::warning("No stock data returned for the given date", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
                 return response()->json(['message' => 'No stock data found'], 404);
             }
 
-            // Save to database
             Log::info("Saving " . count($data) . " stock records to database.");
             $this->dataService->saveStocks($data, $accountId);
 
             Log::info("Stocks successfully fetched and saved.");
-            return response()->json(['message' => 'Stocks fetched and saved successfully', 'records' => count($data)], 200);
+            return response()->json([
+                'message' => 'Stocks fetched and saved successfully',
+                'records' => count($data)
+            ], 200);
 
         } catch (ValidationException $e) {
             Log::error("Validation error", ['errors' => $e->errors()]);
@@ -81,9 +72,138 @@ class StockController extends Controller
         }
     }
 
-    /**
-     * Validate date format
-     */
+    public function localStocks(Request $request)
+    {
+        Log::info("Incoming request to fetch local stocks", ['params' => $request->all()]);
+
+        try {
+            $authorizationHeader = $request->header('Authorization');
+            $apiKey = $request->header('x-api-key');
+            $login = $request->header('X-Login');
+            $password = $request->header('X-Password');
+
+            $account = null;
+
+            switch (true) {
+                case !empty($authorizationHeader) && preg_match('/Bearer\s(\S+)/', $authorizationHeader, $matches):
+                    $tokenValue = $matches[1];
+                    $apiToken = ApiToken::where('token_value', $tokenValue)->with('account')->first();
+                    if (!$apiToken) {
+                        Log::warning("Invalid Bearer Token used", ['token' => $tokenValue]);
+                        return response()->json(['error' => 'Unauthorized - Invalid Token'], 401);
+                    }
+                    $account = $apiToken->account;
+                    break;
+
+                case !empty($apiKey):
+                    $apiToken = ApiToken::where('token_value', $apiKey)->whereHas('tokenType', function ($query) {
+                        $query->where('type', 'api-key');
+                    })->with('account')->first();
+                    if (!$apiToken) {
+                        Log::warning("Invalid API Key used", ['api_key' => $apiKey]);
+                        return response()->json(['error' => 'Unauthorized - Invalid API Key'], 401);
+                    }
+                    $account = $apiToken->account;
+                    break;
+
+                case !empty($login) && !empty($password):
+                    $apiToken = ApiToken::whereHas('tokenType', function ($query) {
+                        $query->where('type', 'login-password');
+                    })->with('account')->get();
+
+                    foreach ($apiToken as $token) {
+                        $credentials = json_decode($token->token_value, true);
+                        if ($credentials && isset($credentials['login'], $credentials['password'])) {
+                            if ($credentials['login'] === $login && $credentials['password'] === $password) {
+                                $account = $token->account;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!$account) {
+                        Log::warning("Invalid login/password authentication", ['login' => $login]);
+                        return response()->json(['error' => 'Unauthorized - Invalid Login Credentials'], 401);
+                    }
+                    break;
+
+                default:
+                    return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
+            }
+
+            $validated = $request->validate([
+                'dateFrom' => [
+                    'nullable',
+                    function ($attribute, $value, $fail) {
+                        if ($value && !$this->isValidDate($value)) {
+                            $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
+                        }
+                    }
+                ],
+                'dateTo' => [
+                    'nullable',
+                    function ($attribute, $value, $fail) {
+                        if ($value && !$this->isValidDate($value)) {
+                            $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
+                        }
+                    }
+                ],
+            ]);
+
+            $accountId = $account->id;
+
+            $latestStoredDate = Stock::where('account_id', $accountId)->max('date');
+
+            $dateFrom = $validated['dateFrom'] ?? ($latestStoredDate ? $latestStoredDate : now()->subDays(7)->format('Y-m-d'));
+            $dateTo = $validated['dateTo'] ?? now()->format('Y-m-d');
+
+            Log::info("Fetching local stocks from database", [
+                'dateFrom' => $dateFrom, 
+                'dateTo' => $dateTo, 
+                'account_id' => $accountId
+            ]);
+
+            $stocks = Stock::where('account_id', $accountId)
+                ->whereBetween('date', [$dateFrom, $dateTo])
+                ->orderBy('date', 'desc')
+                ->get();
+
+            if ($stocks->isEmpty()) {
+                Log::warning("No local stocks found", [
+                    'account_id' => $accountId, 
+                    'dateFrom' => $dateFrom, 
+                    'dateTo' => $dateTo
+                ]);
+                return response()->json(['message' => 'No local stocks found'], 404);
+            }
+
+            Log::info("Retrieved " . count($stocks) . " local stocks from database.");
+
+            Log::info("Response Data:", [
+                'message' => 'Local stocks retrieved successfully',
+                'stocks' => $stocks
+            ]);
+
+            return response()->json([
+                'message' => 'Local stocks retrieved successfully',
+                'stocks' => $stocks
+            ], 200);
+
+        } catch (ValidationException $e) {
+            Log::error("Validation error", ['errors' => $e->errors()]);
+            return response()->json([
+                'error' => 'Validation Error',
+                'messages' => $e->errors(),
+            ], 400);
+        } catch (\Exception $e) {
+            Log::error("Internal Server Error", ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json([
+                'error' => 'Internal Server Error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function isValidDate($date)
     {
         $formats = ['Y-m-d', 'Y-m-d H:i:s'];
@@ -97,4 +217,5 @@ class StockController extends Controller
 
         return false;
     }
+
 }

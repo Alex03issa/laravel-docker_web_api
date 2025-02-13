@@ -5,12 +5,11 @@ services:
       dockerfile: Dockerfile
     container_name: laravel_app
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - .:/var/www/html
     environment:
       DB_CONNECTION: mysql
-      DB_HOST: 172.18.0.2
       DB_PORT: 3306
       DB_DATABASE: Test2Apilaravel
       DB_USERNAME: proctocode_user 

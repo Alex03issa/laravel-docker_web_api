@@ -7,7 +7,9 @@ use App\Services\ApiService;
 use App\Services\DataService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
+use App\Models\Order;
 use App\Models\Account;
+use App\Models\ApiToken;
 
 class OrderController extends Controller
 {
@@ -26,10 +28,11 @@ class OrderController extends Controller
 
         try {
             $validated = $request->validate([
+                'account_id' => 'required|integer|exists:accounts,id',
                 'dateFrom' => [
-                    'required',
+                    'nullable',
                     function ($attribute, $value, $fail) {
-                        if (!$this->isValidDate($value)) {
+                        if ($value && !$this->isValidDate($value)) {
                             $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
                         }
                     }
@@ -42,27 +45,27 @@ class OrderController extends Controller
                         }
                     }
                 ],
-                'account_id' => 'required|integer|exists:accounts,id', 
             ]);
 
-            $dateFrom = $validated['dateFrom'];
-            $dateTo = $validated['dateTo'] ?? $dateFrom;
-            $accountId = $validated['account_id']; 
+            $accountId = $validated['account_id'];
 
-            Log::info("Fetching orders from API", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
+            $latestStoredDate = Order::where('account_id', $accountId)
+                ->max('date');
 
-            // Fetch data from API
+            $dateFrom = $validated['dateFrom'] ?? ($latestStoredDate ? $latestStoredDate : now()->subDays(7)->format('Y-m-d'));
+            $dateTo = $validated['dateTo'] ?? now()->format('Y-m-d');
+
+            Log::info("Fetching only fresh orders from API", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
+
             $data = $this->apiService->fetchPaginatedData('orders', $dateFrom, $dateTo, $accountId);
 
             if (empty($data)) {
-                Log::warning("No orders data returned", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
-                return response()->json(['message' => 'No orders data found'], 404);
+                Log::warning("No new orders found", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
+                return response()->json(['message' => 'No new orders found'], 404);
             }
 
-            // Save data to database
-            Log::info("Saving " . count($data) . " order records to database.");
+            Log::info("Saving " . count($data) . " new orders to database.");
             $this->dataService->saveOrders($data, $accountId);
-
 
             Log::info("Orders successfully fetched and saved.");
             return response()->json([
@@ -101,4 +104,148 @@ class OrderController extends Controller
 
         return false;
     }
+
+    public function localOrders(Request $request)
+    {
+        Log::info("Incoming request to fetch local orders", ['params' => $request->all()]);
+
+        try {
+            $authorizationHeader = $request->header('Authorization');
+            $apiKey = $request->header('x-api-key');
+            $login = $request->header('X-Login');
+            $password = $request->header('X-Password');
+
+            $account = null;
+
+            switch (true) {
+                case !empty($authorizationHeader) && preg_match('/Bearer\s(\S+)/', $authorizationHeader, $matches):
+                    $tokenValue = $matches[1];
+                    $apiToken = ApiToken::where('token_value', $tokenValue)->with('account')->first();
+                    if (!$apiToken) {
+                        Log::warning("Invalid Bearer Token used", ['token' => $tokenValue]);
+                        return response()->json(['error' => 'Unauthorized - Invalid Token'], 401);
+                    }
+                    $account = $apiToken->account;
+                    break;
+
+                case !empty($apiKey):
+                    $apiToken = ApiToken::where('token_value', $apiKey)->whereHas('tokenType', function ($query) {
+                        $query->where('type', 'api-key');
+                    })->with('account')->first();
+                    if (!$apiToken) {
+                        Log::warning("Invalid API Key used", ['api_key' => $apiKey]);
+                        return response()->json(['error' => 'Unauthorized - Invalid API Key'], 401);
+                    }
+                    $account = $apiToken->account;
+                    break;
+
+                case !empty($login) && !empty($password):
+                    $apiToken = ApiToken::whereHas('tokenType', function ($query) {
+                        $query->where('type', 'login-password');
+                    })->with('account')->get();
+
+                    foreach ($apiToken as $token) {
+                        $credentials = json_decode($token->token_value, true);
+                        if ($credentials && isset($credentials['login'], $credentials['password'])) {
+                            if ($credentials['login'] === $login && $credentials['password'] === $password) {
+                                $account = $token->account;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!$account) {
+                        Log::warning("Invalid login/password authentication", ['login' => $login]);
+                        return response()->json(['error' => 'Unauthorized - Invalid Login Credentials'], 401);
+                    }
+                    break;
+
+                default:
+                    return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
+            }
+
+            $validated = $request->validate([
+                'dateFrom' => [
+                    'nullable',
+                    function ($attribute, $value, $fail) {
+                        if ($value && !$this->isValidDate($value)) {
+                            $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
+                        }
+                    }
+                ],
+                'dateTo' => [
+                    'nullable',
+                    function ($attribute, $value, $fail) {
+                        if ($value && !$this->isValidDate($value)) {
+                            $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
+                        }
+                    }
+                ],
+            ]);
+
+            $accountId = $account->id;
+
+            $latestStoredDate = Order::where('account_id', $accountId)->max('date');
+
+            $dateFrom = $validated['dateFrom'] ?? ($latestStoredDate ? $latestStoredDate : now()->subDays(7)->format('Y-m-d'));
+            $dateTo = $validated['dateTo'] ?? now()->format('Y-m-d');
+
+            Log::info("Fetching local orders from database", [
+                'dateFrom' => $dateFrom, 
+                'dateTo' => $dateTo, 
+                'account_id' => $accountId
+            ]);
+
+            $orders = Order::where('account_id', $accountId)
+                ->whereBetween('date', [$dateFrom, $dateTo])
+                ->orderBy('date', 'desc')
+                ->get();
+
+            if ($orders->isEmpty()) {
+                Log::warning("No local orders found", [
+                    'account_id' => $accountId, 
+                    'dateFrom' => $dateFrom, 
+                    'dateTo' => $dateTo
+                ]);
+                return response()->json(['message' => 'No local orders found'], 404);
+            }
+
+            Log::info("Retrieved " . count($orders) . " local orders from database.", ['orders' => $orders]);
+
+            Log::info("Response Data:", [
+                'message' => 'Local orders retrieved successfully',
+                'orders' => $orders
+            ]);
+
+            return response()->json([
+                'message' => 'Local orders retrieved successfully',
+                'orders' => $orders
+            ], 200);
+
+        } catch (ValidationException $e) {
+            Log::error("Validation error", ['errors' => $e->errors()]);
+            return response()->json([
+                'error' => 'Validation Error',
+                'messages' => $e->errors(),
+            ], 400);
+        } catch (\Exception $e) {
+            Log::error("Internal Server Error", [
+                'message' => $e->getMessage(), 
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            Log::error("Response Error:", [
+                'error' => 'Internal Server Error',
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'Internal Server Error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+
 }
