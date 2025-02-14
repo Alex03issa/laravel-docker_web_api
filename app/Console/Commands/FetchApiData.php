@@ -92,6 +92,26 @@ class FetchApiData extends Command
         }
     }
 
+
+
+    private function fetchOrders(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)
+    {
+        try {
+            $this->info("Fetching orders for account ID: {$accountId}...");
+            $orders = $apiService->fetchPaginatedData('orders', $dateFrom, $dateTo, $accountId);
+
+            if (!empty($orders)) {
+                $dataService->saveOrders($orders, $accountId);
+                $this->info("Orders saved successfully. Records: " . count($orders));
+            } else {
+                $this->warn("No new orders found.");
+            }
+        } catch (\Exception $e) {
+            $this->error("Error fetching orders: " . $e->getMessage());
+            Log::error("Orders Fetch Error: " . $e->getMessage());
+        }
+    }
+
     
 
     private function fetchSales(ApiService $apiService, DataService $dataService, $dateFrom, $dateTo, $accountId)

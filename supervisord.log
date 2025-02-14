@@ -122,3 +122,16 @@
 2025-02-13 16:19:08,320 WARN stopped: php (terminated by SIGTERM)
 2025-02-13 16:19:08,519 WARN stopped: cron (terminated by SIGTERM)
 2025-02-13 16:19:08,520 INFO reaped unknown pid 300 (exit status 0)
+2025-02-13 16:19:10,932 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2025-02-13 16:19:10,948 INFO supervisord started with pid 1
+2025-02-13 16:19:11,952 INFO spawned: 'cron' with pid 7
+2025-02-13 16:19:11,956 INFO spawned: 'php' with pid 8
+2025-02-13 16:19:12,984 INFO success: cron entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 16:19:12,985 INFO success: php entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2025-02-13 17:17:01,547 INFO reaped unknown pid 388 (exit status 0)
+2025-02-13 18:17:01,578 INFO reaped unknown pid 694 (exit status 0)
+2025-02-13 19:17:01,885 INFO reaped unknown pid 1000 (exit status 0)
+2025-02-13 20:17:02,048 INFO reaped unknown pid 1306 (exit status 0)
+2025-02-13 21:17:02,463 INFO reaped unknown pid 1612 (exit status 0)
+2025-02-13 22:17:01,867 INFO reaped unknown pid 1918 (exit status 0)
+2025-02-13 23:17:01,282 INFO reaped unknown pid 2224 (exit status 0)
