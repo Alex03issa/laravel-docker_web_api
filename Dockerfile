@@ -24,7 +24,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set the working directory
 WORKDIR /var/www/html
 
-# Copy application files
+# Copy application fileszzz
 COPY . .
 
 # Set proper permissions for Laravel directories

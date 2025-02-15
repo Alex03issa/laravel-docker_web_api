@@ -34,4 +34,10 @@ class Order extends Model
         'is_cancel',
         'cancel_dt',
     ];
+
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
+    }
 }

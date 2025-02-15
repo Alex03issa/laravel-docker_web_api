@@ -29,4 +29,9 @@ class Income extends Model
         'warehouse_name',
         'nm_id',
     ];
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
+    }
 }

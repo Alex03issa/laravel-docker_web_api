@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('sales', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->string('g_number')->unique();
             $table->date('date')->nullable();
             $table->date('last_change_date')->nullable();
@@ -42,6 +43,7 @@ return new class extends Migration
             $table->boolean('is_storno')->nullable();
             $table->timestamps();
         });
+    
     }
 
     public function down()

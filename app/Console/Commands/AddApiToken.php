@@ -8,6 +8,7 @@ use App\Models\ApiService;
 use App\Models\TokenType;
 use App\Models\ApiToken;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 
 class AddApiToken extends Command
 {
@@ -22,12 +23,24 @@ class AddApiToken extends Command
         $tokenValue = $this->argument('token_value');
 
         $account = Account::where('name', $accountName)->first();
-        $apiService = ApiService::where('name', $apiServiceName)->first();
+        $apiService = ApiService::where('service_name', $apiServiceName)->first();
         $tokenType = TokenType::where('type', $tokenTypeName)->first();
 
-        if (!$account || !$apiService || !$tokenType) {
-            Log::error("Ошибка! Проверьте названия аккаунта, API-сервиса и типа токена.");
-            $this->error("Ошибка! Проверьте названия аккаунта, API-сервиса и типа токена.");
+        if (!$account) {
+            Log::error("Аккаунт '{$accountName}' не найден.");
+            $this->error("Аккаунт '{$accountName}' не найден.");
+            return 1;
+        }
+
+        if (!$apiService) {
+            Log::error("API-сервис '{$apiServiceName}' не найден.");
+            $this->error("API-сервис '{$apiServiceName}' не найден.");
+            return 1;
+        }
+
+        if (!$tokenType) {
+            Log::error("Тип токена '{$tokenTypeName}' не найден.");
+            $this->error("Тип токена '{$tokenTypeName}' не найден.");
             return 1;
         }
 
@@ -38,7 +51,7 @@ class AddApiToken extends Command
             'token_value' => $tokenValue,
         ]);
 
-        Log::info("Токен для API '{$apiService->name}' добавлен в аккаунт '{$account->name}'.");
-        $this->info("Токен для API '{$apiService->name}' добавлен в аккаунт '{$account->name}'!");
+        Log::info("Токен для API '{$apiService->service_name}' добавлен в аккаунт '{$account->name}'.");
+        $this->info("Токен для API '{$apiService->service_name}' добавлен в аккаунт '{$account->name}'!");
     }
 }

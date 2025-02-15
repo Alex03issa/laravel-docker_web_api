@@ -33,4 +33,11 @@ class Stock extends Model
         'price',
         'discount',
     ];
+
+
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
+    }
 }

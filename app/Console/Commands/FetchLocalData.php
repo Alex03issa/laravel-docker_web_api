@@ -3,76 +3,193 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\Account;
+use App\Models\ApiService;
+use App\Models\TokenType;
+use App\Models\ApiToken;
+use App\Services\DataService;
+use App\Services\ApiServices;
 
 class FetchLocalData extends Command
 {
     protected $signature = 'fetch:local-data 
-                            {type : Тип данных (orders, sales, incomes, stocks)} 
-                            {account_id : ID аккаунта} 
+                            {account_name : Название аккаунта} 
+                            {api_service_name : Название API-сервиса}
+                            {token_type : Тип токена (bearer, api-key, login-password)} 
                             {--dateFrom= : Начальная дата (Y-m-d)} 
                             {--dateTo= : Конечная дата (Y-m-d)} 
-                            {--bearer= : Токен авторизации Bearer} 
-                            {--api-key= : API-ключ} 
-                            {--login= : Логин} 
-                            {--password= : Пароль}';
+                            {--token= : Токен (Bearer, API-Key, Login-Password)}';
 
-    protected $description = 'Делает локальные запросы к API через консоль, аналогично Postman';
+    protected $description = 'Запрашивает локальные данные с API и сохраняет их в БД';
 
-    public function handle()
+    public function handle(DataService $dataService, ApiServices $apiService)
     {
-        $type = $this->argument('type');
-        $accountId = $this->argument('account_id');
-        $dateFrom = $this->option('dateFrom') ?? now()->subDays(7)->format('Y-m-d');
-        $dateTo = $this->option('dateTo') ?? now()->format('Y-m-d');
-        $bearerToken = $this->option('bearer');
-        $apiKey = $this->option('api-key');
-        $login = $this->option('login');
-        $password = $this->option('password');
+        Log::info("Запрос на получение локальных данных", ['params' => $this->options()]);
 
-        // Определяем URL API
-        $baseUrl = 'http://127.0.0.1:8001/api/local-' . $type;
-        $queryParams = http_build_query([
-            'dateFrom' => $dateFrom,
-            'dateTo' => $dateTo,
-            'account_id' => $accountId,
-        ]);
-
-        $url = "{$baseUrl}?{$queryParams}";
-
-        $headers = ['Accept' => 'application/json'];
-
-        if ($bearerToken) {
-            $headers['Authorization'] = "Bearer {$bearerToken}";
-        } elseif ($apiKey) {
-            $headers['x-api-Key'] = $apiKey;
-        } elseif ($login && $password) {
-            $headers['X-Login'] = $login;
-            $headers['X-Password'] = $password;
-        } else {
-            $this->error("Необходимо указать один из способов аутентификации (Bearer, API-Key, Login/Password)");
-            return 1;
-        }
-
-        // Делаем запрос
         try {
-            Log::info("Запрос к API: {$url}");
+            $accountName = $this->argument('account_name');
+            $apiServiceName = $this->argument('api_service_name');
+            $tokenType = strtolower($this->argument('token_type'));
+            $dateFrom = $this->option('dateFrom') ?? now()->subDays(7)->format('Y-m-d');
+            $dateTo = $this->option('dateTo') ?? now()->format('Y-m-d');
+            $providedToken = $this->option('token');
 
-            $response = Http::withHeaders($headers)->get($url);
-
-            if ($response->successful()) {
-                $this->info("Ответ от API:");
-                $this->line(json_encode($response->json(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-                return 0;
-            } else {
-                $this->error("Ошибка: " . $response->status());
-                $this->line(json_encode($response->json(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            $account = Account::where('name', $accountName)->first();
+            if (!$account) {
+                Log::error("Аккаунт '{$accountName}' не найден.");
                 return 1;
             }
+
+            $apiServiceRecord = ApiService::where('service_name', $apiServiceName)->first();
+            if (!$apiServiceRecord) {
+                Log::error("API-сервис '{$apiServiceName}' не найден.");
+                return 1;
+            }
+
+            $tokenTypeRecord = TokenType::where('type', $tokenType)->first();
+            if (!$tokenTypeRecord) {
+                Log::error("Тип токена '{$tokenType}' не найден.");
+                return 1;
+            }
+
+            // Check if API token exists
+            $apiToken = ApiToken::where('account_id', $account->id)
+                ->where('api_service_id', $apiServiceRecord->id)
+                ->where('token_type_id', $tokenTypeRecord->id)
+                ->first();
+
+            if (!$apiToken) {
+                Log::error("API-токен не найден для аккаунта '{$accountName}' и API-сервиса '{$apiServiceName}'.");
+                return 1;
+            }
+
+            // Check token validity (no hashing)
+            if ($apiToken->token_value !== $providedToken) {
+                Log::error("Ошибка: Неверный токен.");
+                return 1;
+            }
+
+            $baseUrl = "{$apiServiceRecord->base_url}/api/{$apiServiceRecord->api_endpoint}";
+            $headers = ['Accept' => 'application/json'];
+            $page = 1;
+            $data = []; //Ensure $data is always initialized
+
+            switch ($tokenType) {
+                case 'bearer':
+                    $headers['Authorization'] = "Bearer {$providedToken}";
+                    break;
+                case 'api-key':
+                    $headers['x-api-key'] = $providedToken;
+                    break;
+                case 'login-password':
+                    $credentials = explode(':', $providedToken);
+                    if (count($credentials) !== 2) {
+                        $this->error("Для типа 'login-password' токен должен быть в формате 'login:password'.");
+                        return 1;
+                    }
+
+                    $login = $credentials[0];
+                    $password = $credentials[1];
+
+                    $accountRecord = Account::where('email', $login)->first();
+                    if (!$accountRecord || $accountRecord->password !== $password) {
+                        Log::error("Ошибка аутентификации: Неверный логин или пароль для '{$login}'.");
+                        return 1;
+                    }
+
+                    // Send login credentials in headers
+                    $headers['X-Login'] = $login;
+                    $headers['X-Password'] = $password;
+                    break;
+                default:
+                    $this->error("Недопустимый тип токена: '{$tokenType}'. Используйте 'bearer', 'api-key' или 'login-password'.");
+                    return 1;
+            }
+
+            $allData = []; 
+
+        do {
+            $queryParams = [
+                'dateFrom' => $dateFrom,
+                'dateTo' => $dateTo,
+                'account_id' => $account->id,
+                'page' => $page,
+                'limit' => 100 
+            ];
+
+            if ($tokenType === 'api-key') {
+                $queryParams['key'] = $providedToken;
+            }
+
+            $url = "{$baseUrl}?" . http_build_query($queryParams);
+            Log::info("Запрос к API: {$url} (Страница #{$page})");
+
+            $response = $apiService->makeRequestWithRetry($url, $headers);
+
+            if ($response->successful()) {
+                $data = $response->json(); //Ensure $data is assigned before using it
+
+                //Ensure $data['data'] exists and is an array before using it
+                if (!isset($data['data']) || !is_array($data['data']) || count($data['data']) === 0) {
+                    Log::info("Данные закончились на странице #{$page}. Завершаем загрузку.");
+                    break;
+                }
+
+                Log::info("Получено " . count($data['data']) . " записей на странице #{$page}.");
+
+
+                
+
+                //Append New Data Instead of Overwriting
+                $allData = array_merge($allData, $data['data']);
+
+                //Process & Save Each Page's Data Incrementally
+                switch ($apiServiceRecord->api_endpoint) {
+                    case 'orders':
+                        $dataService->saveOrders($allData, $account->id);
+                        break;
+                    case 'sales':
+                        $dataService->saveSales($allData, $account->id);
+                        break;
+                    case 'incomes':
+                        $dataService->saveIncomes($allData, $account->id);
+                        break;
+                    case 'stocks':
+                        $dataService->saveStocks($allData, $account->id);
+                        break;
+                    default:
+                        Log::error("Неизвестный API-сервис: '{$apiServiceRecord->api_endpoint}'.");
+                        return 1;
+                }
+
+                //Ensure Pagination Continues
+                if (!isset($data['links']['next']) || $data['links']['next'] === null) {
+                    Log::info("Последняя страница достигнута (#{$page}), завершаем загрузку.");
+                    break;
+                }
+
+                //Free Memory After Processing Each Page
+                unset($data);
+                gc_collect_cycles();
+
+               
+                $page++;
+
+            } else {
+                Log::error("Ошибка API: " . $response->status());
+                return 1;
+            }
+
+        } while (true);
+
+            
+
+            Log::info("Данные успешно сохранены.");
+            return 0;
+
         } catch (\Exception $e) {
             Log::error("Ошибка запроса: " . $e->getMessage());
-            $this->error("Ошибка запроса: " . $e->getMessage());
             return 1;
         }
     }

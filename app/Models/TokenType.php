@@ -9,10 +9,12 @@ class TokenType extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['type'];
+    protected $fillable = [
+        'company_id', 'name', 'type'
+    ];
 
-    public function tokens()
+    public function company()
     {
-        return $this->hasMany(ApiToken::class);
+        return $this->belongsTo(Company::class);
     }
 }

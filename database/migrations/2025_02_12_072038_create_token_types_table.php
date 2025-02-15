@@ -9,9 +9,11 @@ return new class extends Migration {
     {
         Schema::create('token_types', function (Blueprint $table) {
             $table->id();
-            $table->string('type')->unique(); // Example: 'bearer', 'api-key', 'basic-auth'
+            $table->foreignId('company_id')->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->string('type')->unique();
             $table->timestamps();
-        });
+           });
     }
 
     public function down()

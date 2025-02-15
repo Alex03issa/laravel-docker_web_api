@@ -45,4 +45,9 @@ class Sale extends Model
         'brand',
         'is_storno',
     ];
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
+    }
 }

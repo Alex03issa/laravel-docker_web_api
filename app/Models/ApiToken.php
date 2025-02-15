@@ -9,7 +9,9 @@ class ApiToken extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['account_id', 'api_service_id', 'token_type_id', 'token_value'];
+    protected $fillable = [
+        'account_id', 'api_service_id', 'token_type_id', 'token_value'
+    ];
 
     public function account()
     {

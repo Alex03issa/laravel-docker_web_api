@@ -9,10 +9,12 @@ class ApiService extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'base_url'];
+    protected $fillable = [
+        'base_url', 'company_id', 'service_name', 'api_endpoint'
+    ];
 
-    public function tokens()
+    public function company()
     {
-        return $this->hasMany(ApiToken::class);
+        return $this->belongsTo(Company::class);
     }
 }

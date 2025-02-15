@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Services\ApiService;
+use App\Services\ApiServices;
 use App\Services\DataService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
@@ -16,76 +16,10 @@ class OrderController extends Controller
     protected $apiService;
     protected $dataService;
 
-    public function __construct(ApiService $apiService, DataService $dataService)
+    public function __construct(ApiServices $apiService, DataService $dataService)
     {
         $this->apiService = $apiService;
         $this->dataService = $dataService;
-    }
-
-    public function index(Request $request)
-    {
-        Log::info("Incoming request to fetch orders", ['params' => $request->all()]);
-
-        try {
-            $validated = $request->validate([
-                'account_id' => 'required|integer|exists:accounts,id',
-                'dateFrom' => [
-                    'nullable',
-                    function ($attribute, $value, $fail) {
-                        if ($value && !$this->isValidDate($value)) {
-                            $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
-                        }
-                    }
-                ],
-                'dateTo' => [
-                    'nullable',
-                    function ($attribute, $value, $fail) {
-                        if ($value && !$this->isValidDate($value)) {
-                            $fail("The $attribute must be in format Y-m-d or Y-m-d H:i:s.");
-                        }
-                    }
-                ],
-            ]);
-
-            $accountId = $validated['account_id'];
-
-            $latestStoredDate = Order::where('account_id', $accountId)
-                ->max('date');
-
-            $dateFrom = $validated['dateFrom'] ?? ($latestStoredDate ? $latestStoredDate : now()->subDays(7)->format('Y-m-d'));
-            $dateTo = $validated['dateTo'] ?? now()->format('Y-m-d');
-
-            Log::info("Fetching only fresh orders from API", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
-
-            $data = $this->apiService->fetchPaginatedData('orders', $dateFrom, $dateTo, $accountId);
-
-            if (empty($data)) {
-                Log::warning("No new orders found", ['dateFrom' => $dateFrom, 'dateTo' => $dateTo, 'account_id' => $accountId]);
-                return response()->json(['message' => 'No new orders found'], 404);
-            }
-
-            Log::info("Saving " . count($data) . " new orders to database.");
-            $this->dataService->saveOrders($data, $accountId);
-
-            Log::info("Orders successfully fetched and saved.");
-            return response()->json([
-                'message' => 'Orders fetched and saved successfully',
-                'records' => count($data),
-            ], 200);
-
-        } catch (ValidationException $e) {
-            Log::error("Validation error", ['errors' => $e->errors()]);
-            return response()->json([
-                'error' => 'Validation Error',
-                'messages' => $e->errors(),
-            ], 400);
-        } catch (\Exception $e) {
-            Log::error("Internal Server Error", ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json([
-                'error' => 'Internal Server Error',
-                'message' => $e->getMessage(),
-            ], 500);
-        }
     }
 
     /**
@@ -105,7 +39,7 @@ class OrderController extends Controller
         return false;
     }
 
-    public function localOrders(Request $request)
+    public function Orders(Request $request)
     {
         Log::info("Incoming request to fetch local orders", ['params' => $request->all()]);
 

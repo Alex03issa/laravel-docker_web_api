@@ -23,29 +23,21 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::middleware(['auth.api', 'throttle:20,1'])->group(function () {
-    Route::get('/sales', [SaleController::class, 'index']);
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::get('/stocks', [StockController::class, 'index']);
-    Route::get('/incomes', [IncomeController::class, 'index']);
-});
 
-
-
-Route::middleware([AuthenticateApiToken::class])->group(function () {
-    Route::get('/local-orders', [OrderController::class, 'localOrders']);
+Route::middleware([AuthenticateApiToken::class, 'throttle:20,1'])->group(function () {
+    Route::get('/orders', [OrderController::class, 'Orders']);
 }); 
 
 Route::middleware([AuthenticateApiToken::class])->group(function () {
-    Route::get('/local-sales', [SaleController::class, 'localSales']);
+    Route::get('/sales', [SaleController::class, 'Sales']);
 }); 
 
 Route::middleware([AuthenticateApiToken::class])->group(function () {
-    Route::get('/local-stocks', [StockController::class, 'localStocks']);
+    Route::get('/stocks', [StockController::class, 'Stocks']);
 }); 
 
 Route::middleware([AuthenticateApiToken::class])->group(function () {
-    Route::get('/local-incomes', [IncomeController::class, 'localIncomes']);
+    Route::get('/incomes', [IncomeController::class, 'Incomes']);
 }); 
    
     
