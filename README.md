@@ -1,54 +1,27 @@
-Here’s the **updated README.md** reflecting all the modifications, including:
-- **Deleted `fetch:api-data` (Replaced with `fetch:local-data`)**
-- **Updated database structure (companies, accounts, API tokens, and API services)**
-- **Handled multiple API services per company and account**
-- **Ensured API services are checked before querying**
-- **Improved automated updates and scheduler configuration**
-- **Removed obsolete methods**
-
----
-
-### 📌 **README.md – Laravel WB API Task**  
-_**Automated Multi-Company Data Fetching and Storage from External API using Laravel and Docker**_
+### **README.md – Laravel WB API Task**
+_**Автоматизированная извлечение и хранение данных нескольких компаний из внешнего API с помощью Laravel и Docker**_
 
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Статус сборки"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Всего загрузок"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Последняя стабильная версия"></a>
+<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="Лицензия"></a>
 </p>
 
 ---
 
-## **📌 Overview**
-This Laravel-based project **fetches and stores paginated data from an external API into a MySQL database** while ensuring:
-- **Multi-company, multi-account handling**
-- **Token-based authentication support (API-Key, Bearer, Login-Password)**
-- **Data isolation per account**
-- **Automated periodic updates using Laravel’s task scheduler**
+## **Инструкции по настройке**
 
-### **📌 Key Changes in This Version**
-✅ **Removed `fetch:api-data` (No longer needed)**  
-✅ **Refactored `fetch:local-data` to fetch from multiple companies and services**  
-✅ **Updated database structure to support `companies`, `accounts`, `api_services`, and `api_tokens`**  
-✅ **Ensured only valid API services per company/account are queried**  
-✅ **Scheduled tasks now execute updates for all available API services**  
-✅ **Deleted obsolete migration structures and improved relationships**  
-
----
-
-## **🛠 Setup Instructions**
-
-### **Step 1: Clone the Repository**
+### **Шаг 1: Клонирование репозитория**
 ```bash
 git clone <repository_url>
 cd <repository_directory>
 ```
 
-### **Step 2: Configure Environment Variables**
-Update `.env` file with correct database and application settings:
+### **Шаг 2: Настройка переменных среды**
+Обновите файл `.env` с правильными настройками базы данных и приложения:
 ```env
 APP_NAME=Laravel
 APP_ENV=local
@@ -57,8 +30,8 @@ APP_DEBUG=true
 APP_URL=http://localhost:8000
 
 DB_CONNECTION=mysql
-DB_HOST=laravel_mysql 
-DB_PORT=3309
+DB_HOST=laravel_mysql
+DB_PORT=3306
 DB_DATABASE=Test2Apilaravel
 DB_USERNAME=proctocode_user
 DB_PASSWORD=newpassword
@@ -66,93 +39,150 @@ DB_PASSWORD=newpassword
 
 ---
 
-## **🐳 Running with Docker**
-### **Step 3: Build and Start Docker Containers**
+## ** Запуск с Docker**
+### **Шаг 3: Сборка и запуск контейнеров Docker**
+
+
+#### ** Фрагмент кода `docker-compose.yml`**
+```yaml
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel_app
+    ports:
+      - "8001:8000"  # Приложение доступно на порту 8001
+    volumes:
+      - .:/var/www/html
+    environment:
+      DB_CONNECTION: mysql
+      DB_PORT: 3309  # Подключение к MySQL на нестандартном порту
+      DB_DATABASE: Test2Apilaravel
+      DB_USERNAME: proctocode_user 
+      DB_PASSWORD: newpassword
+    depends_on:
+      mysql:
+        condition: service_healthy 
+    networks:
+      - laravel
+
+  mysql:
+    image: mysql:8.0
+    container_name: laravel_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: Test2Apilaravel  
+      MYSQL_USER: proctocode_user
+      MYSQL_PASSWORD: newpassword
+      MYSQL_ROOT_PASSWORD: newpassword
+    ports:
+      - "3309:3306"  # Меняем внешний порт MySQL
+    command: --max_connections=500 --max_allowed_packet=256M --wait_timeout=600 --net_read_timeout=600 --net_write_timeout=600 --innodb_buffer_pool_size=512M --innodb_log_file_size=128M
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - laravel
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  laravel:
+    driver: bridge
+
+volumes:
+  mysql_data:
+```
+
+---
 ```bash
 docker-compose up -d --build
 ```
-This will start:
-- **`laravel_app`** (Laravel Application)
-- **`laravel_mysql`** (MySQL Database)
+Это запустит:
+- **`laravel_app`** (приложение Laravel)
+- **`laravel_mysql`** (база данных MySQL)
 
 ---
 
-## **🔧 Database Migrations**
-Run the following command to set up your database schema:
+## **Миграции базы данных**
+Выполните следующую команду, чтобы настроить схему базы данных:
 ```bash
 docker exec -it laravel_mysql php artisan migrate
 ```
 
-### **Updated Database Schema**
-| Table           | Description |
+### **Обновленная схема базы данных**
+| Таблица | Описание |
 |----------------|-------------|
-| `companies`    | Stores company details |
-| `accounts`     | Stores accounts under companies |
-| `api_services` | Stores API services assigned to companies |
-| `api_tokens`   | Stores tokens assigned to accounts and services |
-| `orders`       | Stores order data |
-| `sales`        | Stores sales data |
-| `stocks`       | Stores stock data (only for the current day) |
-| `incomes`      | Stores income data |
+| `companies` | Хранит данные компании |
+| `accounts` | Хранит счета в компаниях |
+| `api_services` | Хранит службы API, назначенные компаниям |
+| `api_tokens` | Хранит токены, назначенные счетам и службам |
+| `orders` | Хранит данные о заказах |
+| `sales` | Хранит данные о продажах |
+| `stocks` | Хранит данные о запасах (только на текущий день) |
+| `incomes` | Хранит данные о доходах |
 
 ---
 
-## **📡 Fetching Data from the API**
-### **New Command: `fetch:local-data`**
-You can manually fetch data using:
+## **Извлечение данных из API**
+### **Новая команда: `fetch:local-data`**
+Вы можете вручную извлечь данные с помощью:
 ```bash
 php artisan fetch:local-data --account_name="MainAccount" --api_service_name="OrderService" --token_type="api-key" --dateFrom="2025-01-01" --dateTo="2025-01-15"
 ```
-### **Command Options:**
-| Option       | Description |
-|-------------|------------|
-| `--account_name=`   | Name of the account fetching data |
-| `--api_service_name=` | Name of the API service (orders, sales, stocks, incomes) |
-| `--token_type=` | API token type (`api-key`, `bearer`, `login-password`) |
-| `--dateFrom=` | Start date for data fetching |
-| `--dateTo=`   | End date for data fetching |
-| `--token=`   | Token Value |
+### **Параметры команды:**
+| Параметр | Описание |
+|------------|-------------|
+| `--account_name=` | Имя учетной записи, извлекающей данные |
+| `--api_service_name=` | Имя службы API (заказы, продажи, запасы, доходы) |
+| `--token_type=` | Тип токена API (`api-key`, `bearer`, `login-password`) |
+| `--dateFrom=` | Дата начала извлечения данных |
+| `--dateTo=` | Дата окончания извлечения данных |
+| `--token=` | Значение токена |
 
-### **📌 Examples:**
-Fetch **orders** for a specific account:
+### ** Примеры:**
+Получить **заказы** для определенного аккаунта:
 ```bash
-php artisan fetch:local-data --account_name="MainAccount" --api_service_name="OrderService" --token_type="api-key" --dateFrom="2025-01-01" --dateTo="2025-01-15"  --token="ekfsdfkdgfsdvkfs"
+php artisan fetch:local-data --account_name="MainAccount" --api_service_name="OrderService" --token_type="api-key" --dateFrom="2025-01-01" --dateTo="2025-01-15" --token="ekfsdfkdgfsdvkfs"
 ```
-Fetch **only today's stock data**:
+Получить **только сегодняшние данные по акциям**:
 ```bash
 php artisan fetch:local-data --account_name="MainAccount" --api_service_name="StockService" --token_type="api-key" --dateFrom="2025-02-15" --dateTo="2025-02-15" --token="ekfsdfkdgfsdvkfs"
 ```
 
 ---
 
-## **📅 Automating Data Updates**
-To update **all accounts and API services** **twice a day**, we use Laravel's Scheduler.
+## **Автоматизация обновлений данных**
+Чтобы обновлять **все учетные записи и службы API** **дважды в день**, мы используем планировщик Laravel.
 
-### **Step 1: Add to Laravel Scheduler**
-Edit `app/Console/Kernel.php`:
+### **Шаг 1: Добавить в планировщик Laravel**
+Изменить `app/Console/Kernel.php`:
 ```php
 $schedule->command('update:data')
-            ->timezone('Europe/Moscow')
-            ->twiceDailyAt(8, 18, 00)
-            ->before(function () {
-                $this->waitForDatabase();
-            })
-            ->onFailure(function () {
-                \Log::error( 'Ошибка при обновлении данных!');
-            });
+->timezone('Europe/Moscow')
+->twiceDailyAt(8, 18, 00)
+->before(function () {
+$this->waitForDatabase();
+})
+->onFailure(function () {
+\Log::error( 'Ошибка при обновлении данных!');
+});
 
-### **Step 2: Run the Scheduler**
+### **Шаг 2: Запуск планировщика**
 ```bash
 docker exec -it laravel_app php artisan schedule:work
 ```
 
-### **Updated `update:data` Command**
-The command now:
-- **Loops through all companies**
-- **Finds all accounts under each company**
-- **Ensures only valid API services per company/account are queried**
-- **Automatically fetches data for each API service available to that account**
-- **Ensures `stocks` data is updated separately (only for today)**  
+### **Обновленная команда `update:data`**
+Теперь команда:
+- **Проходит по всем компаниям**
+- **Находит все учетные записи в каждой компании**
+- **Гарантирует, что запрашиваются только допустимые службы API для каждой компании/учетной записи**
+- **Автоматически извлекает данные для каждой службы API, доступной для этой учетной записи**
+- **Обеспечивает отдельное обновление данных `stocks` (только на сегодня)**
 
 ```bash
 php artisan update:data
@@ -160,48 +190,73 @@ php artisan update:data
 
 ---
 
-## **📌 API Services Handling**
-### ✅ **New API Service Structure**
-Previously, API services were not linked to companies properly. Now, each **API service is linked to a company**, ensuring that:
-- Only **valid API services for a given company** are queried
-- Accounts **only fetch data from services assigned to their company**
+## ** Обработка API-сервисов**
+###**Новая структура API-сервисов**
+Раньше API-сервисы не были правильно привязаны к компаниям. Теперь каждый **API-сервис привязан к компании**, что гарантирует:
+- Запрашиваются только **действительные API-сервисы для данной компании**
+- Учетные записи **извлекают данные только из сервисов, назначенных их компании**
 
 ---
 
-## **📌 API Rate Limit Handling**
-The system **automatically retries API requests** when rate limits (`429 Too Many Requests`) are encountered.
+## ** Обработка ограничений по скорости API**
+Система **автоматически повторяет запросы API** при обнаружении ограничений по скорости (`429 Too Many Requests`).
 
-### **Updated `makeRequestWithRetry()`**
-If an API returns **429**, it automatically **waits for the retry-after time** before sending another request.
+### **Обновлено `makeRequestWithRetry()`**
+Если API возвращает **429**, он автоматически **ждет времени повтора** перед отправкой другого запроса.
+
 ```php
 public function makeRequestWithRetry($url, $headers = [])
-{
-    $retryCount = 0;
+    {
+        $retryCount = 0;
 
-    while ($retryCount < $this->maxRetries) {
-        try {
-            Log::info("API Request Attempt #{$retryCount}: {$url}");
+        while ($retryCount < $this->maxRetries) {
+            try {
+                Log::info("Попытка запроса #{$retryCount}: {$url}");
 
-            $response = Http::withHeaders($headers)->get($url);
-            Log::info("API Response Status: " . $response->status());
+                $response = Http::withHeaders($headers)->get($url);
+                Log::info("Ответ от API: Статус - " . $response->status());
 
-            if ($response->status() === 429) {
-                $retryAfter = intval($response->header('Retry-After') ?? ($this->baseDelay * (2 ** $retryCount)));
-                sleep(min($retryAfter, $this->maxWaitTime));
-                $retryCount++;
-                continue;
+                if ($response->status() === 429) {
+                    // If API responds with 429 (Too Many Requests)
+                    $retryAfter = intval($response->header('Retry-After') ?? ($this->baseDelay * (2 ** $retryCount)));
+                    $retryAfter = min($retryAfter, $this->maxWaitTime);
+
+                    Log::warning("Получен 429 Too Many Requests. Повтор через {$retryAfter} секунд...");
+                    sleep($retryAfter);
+                    $retryCount++;
+                    continue;
+                }
+
+                // If status is 200, introduce a small delay before the next request
+                if ($response->successful()) {
+                    usleep(1);
+                }
+
+                $response->throw();
+                return $response;
+
+            } catch (ConnectionException $e) {
+                Log::error("Ошибка соединения: {$e->getMessage()} - Повтор запроса...");
+            } catch (RequestException $e) {
+                Log::error("HTTP ошибка запроса: {$e->getMessage()} - Повтор...");
+            } catch (\Exception $e) {
+                Log::error("Общая ошибка API: {$e->getMessage()}");
+                throw new \Exception("API запрос не выполнен после {$retryCount} попыток: {$e->getMessage()}");
             }
 
-            return $response;
-        } catch (\Exception $e) {
-            Log::error("API Error: " . $e->getMessage());
+            // If not a 200 or 429 error, use exponential backoff
+            $delay = min($this->baseDelay * (2 ** $retryCount), $this->maxWaitTime);
+            Log::warning("Повтор запроса через {$delay} секунд...");
+            sleep($delay);
+            $retryCount++;
         }
 
-        $retryCount++;
+        throw new \Exception("Запрос к API не выполнен после {$this->maxRetries} попыток.");
     }
 
-    throw new \Exception("API request failed after multiple retries.");
-}
 ```
 
 ---
+
+
+

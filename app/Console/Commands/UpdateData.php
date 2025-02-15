@@ -22,13 +22,13 @@ class UpdateData extends Command
 
     public function handle()
     {
-        Log::info("🔄 Начало обновления данных для всех компаний...");
+        Log::info("Начало обновления данных для всех компаний...");
 
         try {
             $companies = Company::all();
 
             if ($companies->isEmpty()) {
-                Log::error("❌ Нет доступных компаний для обновления данных.");
+                Log::error("Нет доступных компаний для обновления данных.");
                 return;
             }
 
@@ -36,7 +36,7 @@ class UpdateData extends Command
             $toDateToday = now()->format('Y-m-d');
 
             foreach ($companies as $company) {
-                Log::info("📌 Обновление данных для компании: {$company->name} (ID: {$company->id})");
+                Log::info(" Обновление данных для компании: {$company->name} (ID: {$company->id})");
 
                 $accounts = Account::where('company_id', $company->id)->get();
                 if ($accounts->isEmpty()) {
@@ -54,9 +54,8 @@ class UpdateData extends Command
                     $accountId = $account->id;
                     $accountName = $account->name;
 
-                    // 🔹 Process all API services before handling `stocks`
+                    
                     foreach ($apiServices as $apiService) {
-                        // Skip stocks, as it will be handled separately
                         if ($apiService->api_endpoint === 'stocks') {
                             continue;
                         }
@@ -82,7 +81,7 @@ class UpdateData extends Command
 
                         $tokenValue = $apiToken->token_value;
 
-                        Log::info("🔄 Обновление данных `{$apiEndpoint}` для API-сервиса '{$apiServiceName}', аккаунт '{$accountName}'.");
+                        Log::info("Обновление данных `{$apiEndpoint}` для API-сервиса '{$apiServiceName}', аккаунт '{$accountName}'.");
 
                         $this->callWithLogging('fetch:local-data', [
                             'account_name' => $accountName,
@@ -94,8 +93,7 @@ class UpdateData extends Command
                         ]);
                     }
 
-                    // 🔹 Handle stocks update AFTER processing all other services
-                    Log::info("📌 Обновляем `stocks` только за сегодня: {$toDateToday}");
+                    Log::info(" Обновляем `stocks` только за сегодня: {$toDateToday}");
 
                     $stocksService = ApiService::where('company_id', $company->id)
                         ->where('api_endpoint', 'stocks')
@@ -124,9 +122,9 @@ class UpdateData extends Command
                 }
             }
 
-            Log::info("✅ Обновление данных завершено успешно.");
+            Log::info("Обновление данных завершено успешно.");
         } catch (\Exception $e) {
-            Log::error("❌ Ошибка при обновлении данных: " . $e->getMessage(), [
+            Log::error("Ошибка при обновлении данных: " . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
         }
@@ -135,11 +133,11 @@ class UpdateData extends Command
     private function callWithLogging($command, $params)
     {
         try {
-            Log::info("🚀 Запуск команды: {$command} с параметрами: ", $params);
+            Log::info("Запуск команды: {$command} с параметрами: ", $params);
             $this->call($command, $params);
-            Log::info("✅ Команда {$command} успешно выполнена.");
+            Log::info("Команда {$command} успешно выполнена.");
         } catch (\Exception $e) {
-            Log::error("❌ Ошибка при выполнении команды {$command}: " . $e->getMessage(), [
+            Log::error("Ошибка при выполнении команды {$command}: " . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
         }
