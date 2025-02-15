@@ -15,6 +15,7 @@ class DataService
      */
     public function saveOrders(array $orders, $accountId)
     {
+        
         Log::info("Saving orders for account ID: {$accountId}, total: " . count($orders));
 
         foreach ($orders as $order) {

@@ -64,11 +64,6 @@ class FetchLocalData extends Command
                 return 1;
             }
 
-            // Check token validity (no hashing)
-            if ($apiToken->token_value !== $providedToken) {
-                Log::error("Ошибка: Неверный токен.");
-                return 1;
-            }
 
             $baseUrl = "{$apiServiceRecord->base_url}/api/{$apiServiceRecord->api_endpoint}";
             $headers = ['Accept' => 'application/json'];
@@ -109,79 +104,83 @@ class FetchLocalData extends Command
 
             $allData = []; 
 
-        do {
-            $queryParams = [
-                'dateFrom' => $dateFrom,
-                'dateTo' => $dateTo,
-                'account_id' => $account->id,
-                'page' => $page,
-                'limit' => 100 
-            ];
-
-            if ($tokenType === 'api-key') {
-                $queryParams['key'] = $providedToken;
-            }
-
-            $url = "{$baseUrl}?" . http_build_query($queryParams);
-            Log::info("Запрос к API: {$url} (Страница #{$page})");
-
-            $response = $apiService->makeRequestWithRetry($url, $headers);
-
-            if ($response->successful()) {
-                $data = $response->json(); //Ensure $data is assigned before using it
-
-                //Ensure $data['data'] exists and is an array before using it
-                if (!isset($data['data']) || !is_array($data['data']) || count($data['data']) === 0) {
-                    Log::info("Данные закончились на странице #{$page}. Завершаем загрузку.");
-                    break;
+            do {
+                $queryParams = [
+                    'dateFrom' => $dateFrom,
+                    'dateTo' => $dateTo,
+                    'account_id' => $account->id,
+                    'page' => $page,
+                    'limit' => 100 
+                ];
+            
+                if ($tokenType === 'api-key') {
+                    $queryParams['key'] = $providedToken;
                 }
-
-                Log::info("Получено " . count($data['data']) . " записей на странице #{$page}.");
-
-
-                
-
-                //Append New Data Instead of Overwriting
-                $allData = array_merge($allData, $data['data']);
-
-                //Process & Save Each Page's Data Incrementally
-                switch ($apiServiceRecord->api_endpoint) {
-                    case 'orders':
-                        $dataService->saveOrders($allData, $account->id);
+            
+                $url = "{$baseUrl}?" . http_build_query($queryParams);
+            
+                // Display request URL in console
+                $this->info("Отправляем запрос к API: {$url} (Страница #{$page})");
+                Log::info("Запрос к API: {$url} (Страница #{$page})");
+            
+                $response = $apiService->makeRequestWithRetry($url, $headers);
+            
+                if ($response->successful()) {
+                    $data = $response->json();
+            
+                    if (!isset($data['data']) || !is_array($data['data']) || count($data['data']) === 0) {
+                        $this->info("Данные закончились на странице #{$page}. Завершаем загрузку.");
+                        Log::info("Данные закончились на странице #{$page}. Завершаем загрузку.");
                         break;
-                    case 'sales':
-                        $dataService->saveSales($allData, $account->id);
+                    }
+            
+                    $this->info("Получено " . count($data['data']) . " записей на странице #{$page}.");
+                    Log::info("Получено " . count($data['data']) . " записей на странице #{$page}.");
+            
+                    // Append New Data Instead of Overwriting
+                    $allData = array_merge($allData, $data['data']);
+            
+                    // Process & Save Each Page's Data Incrementally
+                    switch ($apiServiceRecord->api_endpoint) {
+                        case 'orders':
+                            $dataService->saveOrders($allData, $account->id);
+                            break;
+                        case 'sales':
+                            $dataService->saveSales($allData, $account->id);
+                            break;
+                        case 'incomes':
+                            $dataService->saveIncomes($allData, $account->id);
+                            break;
+                        case 'stocks':
+                            $dataService->saveStocks($allData, $account->id);
+                            break;
+                        default:
+                            $this->error("Неизвестный API-сервис: '{$apiServiceRecord->api_endpoint}'.");
+                            Log::error("Неизвестный API-сервис: '{$apiServiceRecord->api_endpoint}'.");
+                            return 1;
+                    }
+            
+                    // Ensure Pagination Continues
+                    if (!isset($data['links']['next']) || $data['links']['next'] === null) {
+                        $this->info("Последняя страница достигнута (#{$page}), завершаем загрузку.");
+                        Log::info("Последняя страница достигнута (#{$page}), завершаем загрузку.");
                         break;
-                    case 'incomes':
-                        $dataService->saveIncomes($allData, $account->id);
-                        break;
-                    case 'stocks':
-                        $dataService->saveStocks($allData, $account->id);
-                        break;
-                    default:
-                        Log::error("Неизвестный API-сервис: '{$apiServiceRecord->api_endpoint}'.");
-                        return 1;
+                    }
+            
+                    // Free Memory After Processing Each Page
+                    unset($data);
+                    gc_collect_cycles();
+            
+                    $page++;
+            
+                } else {
+                    $this->error("Ошибка API: " . $response->status());
+                    Log::error("Ошибка API: " . $response->status());
+                    return 1;
                 }
-
-                //Ensure Pagination Continues
-                if (!isset($data['links']['next']) || $data['links']['next'] === null) {
-                    Log::info("Последняя страница достигнута (#{$page}), завершаем загрузку.");
-                    break;
-                }
-
-                //Free Memory After Processing Each Page
-                unset($data);
-                gc_collect_cycles();
-
-               
-                $page++;
-
-            } else {
-                Log::error("Ошибка API: " . $response->status());
-                return 1;
-            }
-
-        } while (true);
+            
+            } while (true);
+            
 
             
 

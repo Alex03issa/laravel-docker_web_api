@@ -24,9 +24,10 @@ class StockController extends Controller
 
     public function Stocks(Request $request)
     {
-        Log::info("Incoming request to fetch local stocks", ['params' => $request->all()]);
+        Log::info("Incoming request to fetch stocks", ['params' => $request->all()]);
 
         try {
+            // 🔹 Authentication Handling
             $authorizationHeader = $request->header('Authorization');
             $apiKey = $request->header('x-api-key');
             $login = $request->header('X-Login');
@@ -38,28 +39,25 @@ class StockController extends Controller
                 case !empty($authorizationHeader) && preg_match('/Bearer\s(\S+)/', $authorizationHeader, $matches):
                     $tokenValue = $matches[1];
                     $apiToken = ApiToken::where('token_value', $tokenValue)->with('account')->first();
-                    if (!$apiToken) {
-                        Log::warning("Invalid Bearer Token used", ['token' => $tokenValue]);
-                        return response()->json(['error' => 'Unauthorized - Invalid Token'], 401);
+                    if ($apiToken) {
+                        $account = $apiToken->account;
                     }
-                    $account = $apiToken->account;
                     break;
 
                 case !empty($apiKey):
-                    $apiToken = ApiToken::where('token_value', $apiKey)->whereHas('tokenType', function ($query) {
-                        $query->where('type', 'api-key');
-                    })->with('account')->first();
-                    if (!$apiToken) {
-                        Log::warning("Invalid API Key used", ['api_key' => $apiKey]);
-                        return response()->json(['error' => 'Unauthorized - Invalid API Key'], 401);
+                    $apiToken = ApiToken::where('token_value', $apiKey)
+                        ->whereHas('tokenType', fn($query) => $query->where('type', 'api-key'))
+                        ->with('account')
+                        ->first();
+                    if ($apiToken) {
+                        $account = $apiToken->account;
                     }
-                    $account = $apiToken->account;
                     break;
 
                 case !empty($login) && !empty($password):
-                    $apiToken = ApiToken::whereHas('tokenType', function ($query) {
-                        $query->where('type', 'login-password');
-                    })->with('account')->get();
+                    $apiToken = ApiToken::whereHas('tokenType', fn($query) => $query->where('type', 'login-password'))
+                        ->with('account')
+                        ->get();
 
                     foreach ($apiToken as $token) {
                         $credentials = json_decode($token->token_value, true);
@@ -70,15 +68,19 @@ class StockController extends Controller
                             }
                         }
                     }
-
-                    if (!$account) {
-                        Log::warning("Invalid login/password authentication", ['login' => $login]);
-                        return response()->json(['error' => 'Unauthorized - Invalid Login Credentials'], 401);
-                    }
                     break;
+            }
 
-                default:
-                    return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
+            // 🔹 Extract `account_id` from request, ensuring it's correct
+            $requestedAccountId = $request->get('account_id');
+            if ($account && $requestedAccountId && $requestedAccountId != $account->id) {
+                Log::warning("Account ID mismatch. Requested: {$requestedAccountId}, Authenticated: {$account->id}");
+                return response()->json(['error' => 'Unauthorized - Account ID mismatch'], 403);
+            }
+
+            if (!$account) {
+                Log::warning("Authentication failed, rejecting request.");
+                return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
             }
 
             $validated = $request->validate([
@@ -100,19 +102,21 @@ class StockController extends Controller
                 ],
             ]);
 
+            // 🔹 Use the correct `account_id`
             $accountId = $account->id;
 
+            // 🔹 Determine `dateFrom` and `dateTo`
             $latestStoredDate = Stock::where('account_id', $accountId)->max('date');
-
             $dateFrom = $validated['dateFrom'] ?? ($latestStoredDate ? $latestStoredDate : now()->subDays(7)->format('Y-m-d'));
             $dateTo = $validated['dateTo'] ?? now()->format('Y-m-d');
 
-            Log::info("Fetching local stocks from database", [
-                'dateFrom' => $dateFrom, 
-                'dateTo' => $dateTo, 
+            Log::info("Fetching stocks from API", [
+                'dateFrom' => $dateFrom,
+                'dateTo' => $dateTo,
                 'account_id' => $accountId
             ]);
 
+            // 🔹 Fetch Stocks from API
             $stocks = Stock::where('account_id', $accountId)
                 ->whereBetween('date', [$dateFrom, $dateTo])
                 ->orderBy('date', 'desc')
@@ -120,22 +124,19 @@ class StockController extends Controller
 
             if ($stocks->isEmpty()) {
                 Log::warning("No local stocks found", [
-                    'account_id' => $accountId, 
-                    'dateFrom' => $dateFrom, 
+                    'account_id' => $accountId,
+                    'dateFrom' => $dateFrom,
                     'dateTo' => $dateTo
                 ]);
                 return response()->json(['message' => 'No local stocks found'], 404);
             }
 
-            Log::info("Retrieved " . count($stocks) . " local stocks from database.");
-
-            Log::info("Response Data:", [
-                'message' => 'Local stocks retrieved successfully',
-                'stocks' => $stocks
-            ]);
+            // ✅ Save stocks after fetching
+            Log::info("Saving retrieved stocks for account ID: {$accountId}");
+            $this->dataService->saveStocks($stocks->toArray(), $accountId);
 
             return response()->json([
-                'message' => 'Local stocks retrieved successfully',
+                'message' => 'Stocks fetched and saved successfully',
                 'stocks' => $stocks
             ], 200);
 
@@ -146,7 +147,11 @@ class StockController extends Controller
                 'messages' => $e->errors(),
             ], 400);
         } catch (\Exception $e) {
-            Log::error("Internal Server Error", ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error("Internal Server Error", [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'error' => 'Internal Server Error',
                 'message' => $e->getMessage(),
@@ -167,5 +172,4 @@ class StockController extends Controller
 
         return false;
     }
-
 }

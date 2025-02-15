@@ -36,12 +36,12 @@ class SaleController extends Controller
         return false;
     }
 
-
     public function Sales(Request $request)
     {
-        Log::info("Incoming request to fetch local sales", ['params' => $request->all()]);
+        Log::info("Incoming request to fetch sales", ['params' => $request->all()]);
 
         try {
+            // 🔹 Authentication Handling
             $authorizationHeader = $request->header('Authorization');
             $apiKey = $request->header('x-api-key');
             $login = $request->header('X-Login');
@@ -53,28 +53,25 @@ class SaleController extends Controller
                 case !empty($authorizationHeader) && preg_match('/Bearer\s(\S+)/', $authorizationHeader, $matches):
                     $tokenValue = $matches[1];
                     $apiToken = ApiToken::where('token_value', $tokenValue)->with('account')->first();
-                    if (!$apiToken) {
-                        Log::warning("Invalid Bearer Token used", ['token' => $tokenValue]);
-                        return response()->json(['error' => 'Unauthorized - Invalid Token'], 401);
+                    if ($apiToken) {
+                        $account = $apiToken->account;
                     }
-                    $account = $apiToken->account;
                     break;
 
                 case !empty($apiKey):
-                    $apiToken = ApiToken::where('token_value', $apiKey)->whereHas('tokenType', function ($query) {
-                        $query->where('type', 'api-key');
-                    })->with('account')->first();
-                    if (!$apiToken) {
-                        Log::warning("Invalid API Key used", ['api_key' => $apiKey]);
-                        return response()->json(['error' => 'Unauthorized - Invalid API Key'], 401);
+                    $apiToken = ApiToken::where('token_value', $apiKey)
+                        ->whereHas('tokenType', fn($query) => $query->where('type', 'api-key'))
+                        ->with('account')
+                        ->first();
+                    if ($apiToken) {
+                        $account = $apiToken->account;
                     }
-                    $account = $apiToken->account;
                     break;
 
                 case !empty($login) && !empty($password):
-                    $apiToken = ApiToken::whereHas('tokenType', function ($query) {
-                        $query->where('type', 'login-password');
-                    })->with('account')->get();
+                    $apiToken = ApiToken::whereHas('tokenType', fn($query) => $query->where('type', 'login-password'))
+                        ->with('account')
+                        ->get();
 
                     foreach ($apiToken as $token) {
                         $credentials = json_decode($token->token_value, true);
@@ -85,15 +82,19 @@ class SaleController extends Controller
                             }
                         }
                     }
-
-                    if (!$account) {
-                        Log::warning("Invalid login/password authentication", ['login' => $login]);
-                        return response()->json(['error' => 'Unauthorized - Invalid Login Credentials'], 401);
-                    }
                     break;
+            }
 
-                default:
-                    return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
+            // 🔹 Extract `account_id` from request, ensuring it's correct
+            $requestedAccountId = $request->get('account_id');
+            if ($account && $requestedAccountId && $requestedAccountId != $account->id) {
+                Log::warning("Account ID mismatch. Requested: {$requestedAccountId}, Authenticated: {$account->id}");
+                return response()->json(['error' => 'Unauthorized - Account ID mismatch'], 403);
+            }
+
+            if (!$account) {
+                Log::warning("Authentication failed, rejecting request.");
+                return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
             }
 
             $validated = $request->validate([
@@ -115,19 +116,21 @@ class SaleController extends Controller
                 ],
             ]);
 
+            // 🔹 Use the correct `account_id`
             $accountId = $account->id;
 
+            // 🔹 Determine `dateFrom` and `dateTo`
             $latestStoredDate = Sale::where('account_id', $accountId)->max('date');
-
             $dateFrom = $validated['dateFrom'] ?? ($latestStoredDate ? $latestStoredDate : now()->subDays(7)->format('Y-m-d'));
             $dateTo = $validated['dateTo'] ?? now()->format('Y-m-d');
 
-            Log::info("Fetching local sales from database", [
-                'dateFrom' => $dateFrom, 
-                'dateTo' => $dateTo, 
+            Log::info("Fetching sales from API", [
+                'dateFrom' => $dateFrom,
+                'dateTo' => $dateTo,
                 'account_id' => $accountId
             ]);
 
+            // 🔹 Fetch Sales from API
             $sales = Sale::where('account_id', $accountId)
                 ->whereBetween('date', [$dateFrom, $dateTo])
                 ->orderBy('date', 'desc')
@@ -135,22 +138,19 @@ class SaleController extends Controller
 
             if ($sales->isEmpty()) {
                 Log::warning("No local sales found", [
-                    'account_id' => $accountId, 
-                    'dateFrom' => $dateFrom, 
+                    'account_id' => $accountId,
+                    'dateFrom' => $dateFrom,
                     'dateTo' => $dateTo
                 ]);
                 return response()->json(['message' => 'No local sales found'], 404);
             }
 
-            Log::info("Retrieved " . count($sales) . " local sales from database.");
-
-            Log::info("Response Data:", [
-                'message' => 'Local sales retrieved successfully',
-                'sales' => $sales
-            ]);
+            // ✅ Save sales after fetching
+            Log::info("Saving retrieved sales for account ID: {$accountId}");
+            $this->dataService->saveSales($sales->toArray(), $accountId);
 
             return response()->json([
-                'message' => 'Local sales retrieved successfully',
+                'message' => 'Sales fetched and saved successfully',
                 'sales' => $sales
             ], 200);
 
@@ -161,7 +161,11 @@ class SaleController extends Controller
                 'messages' => $e->errors(),
             ], 400);
         } catch (\Exception $e) {
-            Log::error("Internal Server Error", ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            Log::error("Internal Server Error", [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'error' => 'Internal Server Error',
                 'message' => $e->getMessage(),

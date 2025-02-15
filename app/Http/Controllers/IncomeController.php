@@ -22,15 +22,12 @@ class IncomeController extends Controller
         $this->dataService = $dataService;
     }
 
-    /**
-     * Retrieve local incomes from the database with authentication.
-     */
     public function Incomes(Request $request)
     {
-        Log::info("Incoming request to fetch local incomes", ['params' => $request->all()]);
+        Log::info("Incoming request to fetch incomes", ['params' => $request->all()]);
 
         try {
-            // Extract headers for authentication
+            // 🔹 Authentication Handling
             $authorizationHeader = $request->header('Authorization');
             $apiKey = $request->header('X-Api-Key');
             $login = $request->header('X-Login');
@@ -42,28 +39,25 @@ class IncomeController extends Controller
                 case !empty($authorizationHeader) && preg_match('/Bearer\s(\S+)/', $authorizationHeader, $matches):
                     $tokenValue = $matches[1];
                     $apiToken = ApiToken::where('token_value', $tokenValue)->with('account')->first();
-                    if (!$apiToken) {
-                        Log::warning("Invalid Bearer Token used", ['token' => $tokenValue]);
-                        return response()->json(['error' => 'Unauthorized - Invalid Token'], 401);
+                    if ($apiToken) {
+                        $account = $apiToken->account;
                     }
-                    $account = $apiToken->account;
                     break;
 
                 case !empty($apiKey):
-                    $apiToken = ApiToken::where('token_value', $apiKey)->whereHas('tokenType', function ($query) {
-                        $query->where('type', 'api-key');
-                    })->with('account')->first();
-                    if (!$apiToken) {
-                        Log::warning("Invalid API Key used", ['api_key' => $apiKey]);
-                        return response()->json(['error' => 'Unauthorized - Invalid API Key'], 401);
+                    $apiToken = ApiToken::where('token_value', $apiKey)
+                        ->whereHas('tokenType', fn($query) => $query->where('type', 'api-key'))
+                        ->with('account')
+                        ->first();
+                    if ($apiToken) {
+                        $account = $apiToken->account;
                     }
-                    $account = $apiToken->account;
                     break;
 
                 case !empty($login) && !empty($password):
-                    $apiToken = ApiToken::whereHas('tokenType', function ($query) {
-                        $query->where('type', 'login-password');
-                    })->with('account')->get();
+                    $apiToken = ApiToken::whereHas('tokenType', fn($query) => $query->where('type', 'login-password'))
+                        ->with('account')
+                        ->get();
 
                     foreach ($apiToken as $token) {
                         $credentials = json_decode($token->token_value, true);
@@ -74,15 +68,19 @@ class IncomeController extends Controller
                             }
                         }
                     }
-
-                    if (!$account) {
-                        Log::warning("Invalid login/password authentication", ['login' => $login]);
-                        return response()->json(['error' => 'Unauthorized - Invalid Login Credentials'], 401);
-                    }
                     break;
+            }
 
-                default:
-                    return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
+            // 🔹 Extract `account_id` from request, ensuring it's correct
+            $requestedAccountId = $request->get('account_id');
+            if ($account && $requestedAccountId && $requestedAccountId != $account->id) {
+                Log::warning("Account ID mismatch. Requested: {$requestedAccountId}, Authenticated: {$account->id}");
+                return response()->json(['error' => 'Unauthorized - Account ID mismatch'], 403);
+            }
+
+            if (!$account) {
+                Log::warning("Authentication failed, rejecting request.");
+                return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
             }
 
             $validated = $request->validate([
@@ -90,19 +88,21 @@ class IncomeController extends Controller
                 'dateTo' => 'nullable|date',
             ]);
 
+            // 🔹 Use the correct `account_id`
             $accountId = $account->id;
 
+            // 🔹 Determine `dateFrom` and `dateTo`
             $latestStoredDate = Income::where('account_id', $accountId)->max('date');
-
             $dateFrom = $validated['dateFrom'] ?? ($latestStoredDate ? $latestStoredDate : now()->subDays(7)->format('Y-m-d'));
             $dateTo = $validated['dateTo'] ?? now()->format('Y-m-d');
 
-            Log::info("Fetching local incomes from database", [
-                'dateFrom' => $dateFrom, 
-                'dateTo' => $dateTo, 
+            Log::info("Fetching incomes from API", [
+                'dateFrom' => $dateFrom,
+                'dateTo' => $dateTo,
                 'account_id' => $accountId
             ]);
 
+            // 🔹 Fetch Incomes from API
             $incomes = Income::where('account_id', $accountId)
                 ->whereBetween('date', [$dateFrom, $dateTo])
                 ->orderBy('date', 'desc')
@@ -110,16 +110,19 @@ class IncomeController extends Controller
 
             if ($incomes->isEmpty()) {
                 Log::warning("No local incomes found", [
-                    'account_id' => $accountId, 
-                    'dateFrom' => $dateFrom, 
+                    'account_id' => $accountId,
+                    'dateFrom' => $dateFrom,
                     'dateTo' => $dateTo
                 ]);
                 return response()->json(['message' => 'No local incomes found'], 404);
             }
 
-            Log::info("Retrieved " . count($incomes) . " local incomes from database.");
+            // ✅ Save incomes after fetching
+            Log::info("Saving retrieved incomes for account ID: {$accountId}");
+            $this->dataService->saveIncomes($incomes->toArray(), $accountId);
+
             return response()->json([
-                'message' => 'Local incomes retrieved successfully',
+                'message' => 'Incomes fetched and saved successfully',
                 'incomes' => $incomes
             ], 200);
 
@@ -131,27 +134,14 @@ class IncomeController extends Controller
             ], 400);
         } catch (\Exception $e) {
             Log::error("Internal Server Error", [
-                'message' => $e->getMessage(), 
+                'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+
             return response()->json([
                 'error' => 'Internal Server Error',
                 'message' => $e->getMessage(),
             ], 500);
         }
-    }
-
-    private function isValidDate($date)
-    {
-        $formats = ['Y-m-d', 'Y-m-d H:i:s'];
-
-        foreach ($formats as $format) {
-            $parsedDate = \DateTime::createFromFormat($format, $date);
-            if ($parsedDate && $parsedDate->format($format) === $date) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

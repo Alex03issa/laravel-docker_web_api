@@ -41,9 +41,10 @@ class OrderController extends Controller
 
     public function Orders(Request $request)
     {
-        Log::info("Incoming request to fetch local orders", ['params' => $request->all()]);
+        Log::info("Incoming request to fetch orders", ['params' => $request->all()]);
 
         try {
+            // Authentication Handling
             $authorizationHeader = $request->header('Authorization');
             $apiKey = $request->header('x-api-key');
             $login = $request->header('X-Login');
@@ -55,28 +56,25 @@ class OrderController extends Controller
                 case !empty($authorizationHeader) && preg_match('/Bearer\s(\S+)/', $authorizationHeader, $matches):
                     $tokenValue = $matches[1];
                     $apiToken = ApiToken::where('token_value', $tokenValue)->with('account')->first();
-                    if (!$apiToken) {
-                        Log::warning("Invalid Bearer Token used", ['token' => $tokenValue]);
-                        return response()->json(['error' => 'Unauthorized - Invalid Token'], 401);
+                    if ($apiToken) {
+                        $account = $apiToken->account;
                     }
-                    $account = $apiToken->account;
                     break;
 
                 case !empty($apiKey):
-                    $apiToken = ApiToken::where('token_value', $apiKey)->whereHas('tokenType', function ($query) {
-                        $query->where('type', 'api-key');
-                    })->with('account')->first();
-                    if (!$apiToken) {
-                        Log::warning("Invalid API Key used", ['api_key' => $apiKey]);
-                        return response()->json(['error' => 'Unauthorized - Invalid API Key'], 401);
+                    $apiToken = ApiToken::where('token_value', $apiKey)
+                        ->whereHas('tokenType', fn($query) => $query->where('type', 'api-key'))
+                        ->with('account')
+                        ->first();
+                    if ($apiToken) {
+                        $account = $apiToken->account;
                     }
-                    $account = $apiToken->account;
                     break;
 
                 case !empty($login) && !empty($password):
-                    $apiToken = ApiToken::whereHas('tokenType', function ($query) {
-                        $query->where('type', 'login-password');
-                    })->with('account')->get();
+                    $apiToken = ApiToken::whereHas('tokenType', fn($query) => $query->where('type', 'login-password'))
+                        ->with('account')
+                        ->get();
 
                     foreach ($apiToken as $token) {
                         $credentials = json_decode($token->token_value, true);
@@ -87,15 +85,19 @@ class OrderController extends Controller
                             }
                         }
                     }
-
-                    if (!$account) {
-                        Log::warning("Invalid login/password authentication", ['login' => $login]);
-                        return response()->json(['error' => 'Unauthorized - Invalid Login Credentials'], 401);
-                    }
                     break;
+            }
 
-                default:
-                    return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
+            // Extract `account_id` from request, ensuring it's correct
+            $requestedAccountId = $request->get('account_id');
+            if ($account && $requestedAccountId && $requestedAccountId != $account->id) {
+                Log::warning("Account ID mismatch. Requested: {$requestedAccountId}, Authenticated: {$account->id}");
+                return response()->json(['error' => 'Unauthorized - Account ID mismatch'], 403);
+            }
+
+            if (!$account) {
+                Log::warning("Authentication failed, rejecting request.");
+                return response()->json(['error' => 'Unauthorized - Missing Authentication'], 401);
             }
 
             $validated = $request->validate([
@@ -117,19 +119,21 @@ class OrderController extends Controller
                 ],
             ]);
 
+            // Use the correct `account_id`
             $accountId = $account->id;
 
+            // Determine `dateFrom` and `dateTo`
             $latestStoredDate = Order::where('account_id', $accountId)->max('date');
-
             $dateFrom = $validated['dateFrom'] ?? ($latestStoredDate ? $latestStoredDate : now()->subDays(7)->format('Y-m-d'));
             $dateTo = $validated['dateTo'] ?? now()->format('Y-m-d');
 
-            Log::info("Fetching local orders from database", [
-                'dateFrom' => $dateFrom, 
-                'dateTo' => $dateTo, 
+            Log::info("Fetching orders from database", [
+                'dateFrom' => $dateFrom,
+                'dateTo' => $dateTo,
                 'account_id' => $accountId
             ]);
 
+            //Fetch local orders from database
             $orders = Order::where('account_id', $accountId)
                 ->whereBetween('date', [$dateFrom, $dateTo])
                 ->orderBy('date', 'desc')
@@ -137,22 +141,19 @@ class OrderController extends Controller
 
             if ($orders->isEmpty()) {
                 Log::warning("No local orders found", [
-                    'account_id' => $accountId, 
-                    'dateFrom' => $dateFrom, 
+                    'account_id' => $accountId,
+                    'dateFrom' => $dateFrom,
                     'dateTo' => $dateTo
                 ]);
                 return response()->json(['message' => 'No local orders found'], 404);
             }
 
-            Log::info("Retrieved " . count($orders) . " local orders from database.", ['orders' => $orders]);
-
-            Log::info("Response Data:", [
-                'message' => 'Local orders retrieved successfully',
-                'orders' => $orders
-            ]);
+            // save orders after fetching
+            Log::info("Saving retrieved orders for account ID: {$accountId}");
+            $this->dataService->saveOrders($orders->toArray(), $accountId);
 
             return response()->json([
-                'message' => 'Local orders retrieved successfully',
+                'message' => 'Orders fetched and saved successfully',
                 'orders' => $orders
             ], 200);
 
@@ -164,13 +165,8 @@ class OrderController extends Controller
             ], 400);
         } catch (\Exception $e) {
             Log::error("Internal Server Error", [
-                'message' => $e->getMessage(), 
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            Log::error("Response Error:", [
-                'error' => 'Internal Server Error',
                 'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -179,7 +175,5 @@ class OrderController extends Controller
             ], 500);
         }
     }
-
-
 
 }
